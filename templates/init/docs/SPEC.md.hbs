@@ -1,0 +1,61 @@
+# {{projectName}} — Technical Specification
+
+> Technical requirements for each component. Constrains implementation decisions.
+
+**Project**: {{projectName}}
+**Created**: {{date}}
+**Tech Stack**: (define your stack)
+
+## Directory Structure
+
+```
+{{projectName}}/
+├── src/
+│   ├── types/      # Shared type definitions
+│   ├── core/       # Core business logic
+│   ├── utils/      # Utility functions
+│   └── api/        # External interfaces
+├── test/
+│   ├── unit/
+│   └── integration/
+└── docs/
+```
+
+## Component Specifications
+
+### `src/types/` — Type Definitions
+**Requirements**:
+- [ ] All types explicitly defined (no `any`)
+- [ ] Public types exported from `index.ts`
+
+**Constraints**: No runtime dependencies, no circular imports
+
+### `src/core/` — Core Logic
+**Requirements**:
+- [ ] Pure functions where possible
+- [ ] Error handling via Result pattern
+- [ ] Single responsibility per module
+
+**Constraints**: No direct I/O, no framework-specific code
+
+### `src/utils/` — Utilities
+**Requirements**:
+- [ ] Independently testable
+- [ ] No side effects
+
+**Constraints**: No business logic
+
+### `test/` — Testing
+**Requirements**:
+- [ ] Unit coverage ≥ 80% for core/
+- [ ] Integration tests for public APIs
+
+**Conventions**: `<file>.test.ts`, descriptive test names
+
+## Coding Standards
+
+- Files: `kebab-case`, Classes: `PascalCase`, Functions: `camelCase`, Constants: `UPPER_SNAKE_CASE`
+- Use `Result<T, E>` for expected failures, exceptions for programmer errors
+- Keep functions under 30 lines, prefer composition over inheritance
+
+Edit this spec to match your project requirements.

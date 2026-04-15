@@ -1,0 +1,28 @@
+name: my-agent
+description: "A helpful sub-agent"
+scope: project
+# model: sonnet
+
+tools:
+  - Read
+  - Glob
+  - Grep
+
+permissions: default
+memory: project
+
+# hooks:
+#   PreToolUse:
+#     - matcher: "Bash"
+#       type: command
+#       command: "./scripts/validate.sh"
+
+# skills:
+#   - my-skill
+
+prompt: |
+  You are a helpful assistant.
+
+  ## Instructions
+  - Follow best practices
+  - Be concise and clear

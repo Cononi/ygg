@@ -1,0 +1,14 @@
+name: my-command
+description: "A basic slash command"
+scope: project
+
+prompt: |
+  Execute the following workflow:
+
+  1. Check the current state
+  2. Perform the action
+  3. Report the results
+
+# depends_on:
+#   agents:
+#     - my-agent

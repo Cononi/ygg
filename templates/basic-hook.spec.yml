@@ -1,0 +1,13 @@
+name: my-hook
+description: "A basic hook configuration"
+scope: project
+
+events:
+  PostToolUse:
+    - matcher: "Write|Edit"
+      type: command
+      command: 'echo "File modified"'
+
+  # Stop:
+  #   - type: command
+  #     command: "npm test"

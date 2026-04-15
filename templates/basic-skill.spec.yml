@@ -1,0 +1,28 @@
+name: my-skill
+description: >
+  A basic skill that does X.
+  TRIGGER when: <conditions where this skill should activate>.
+  DO NOT TRIGGER when: <conditions where this skill should NOT activate>.
+
+allowed_tools:
+  - Read
+  - Bash
+
+content: |
+  # My Skill
+
+  ## Activation
+  Write clear TRIGGER/DO NOT TRIGGER conditions in the description field above.
+  These conditions tell Claude Code when to use this skill automatically.
+
+  ## Quick Start
+  Describe how to use this skill.
+
+  ## Examples
+  Provide examples here.
+
+# supplementary_files:
+#   - path: GUIDE.md
+#     content: |
+#       # Additional Guide
+#       ...

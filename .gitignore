@@ -137,3 +137,13 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+.serena
+.cluade
+.ygg-changed
+
+# ygg config backup (auto-migration)
+ygg
+.serena
+.codex
+.spec
