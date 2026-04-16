@@ -7,7 +7,7 @@ export interface ValidateOptions {
   target?: string
 }
 
-/** validate 커맨드: 생성된 파일이 Claude Code 규약에 맞는지 검증 */
+/** validate 커맨드: 생성된 파일이 대상 워크플로우 규약에 맞는지 검증 */
 export async function runValidate(projectRoot: string, options: ValidateOptions): Promise<void> {
   const targetDir = resolve(projectRoot, options.target ?? '.claude')
   const result = await validateOutput(targetDir)

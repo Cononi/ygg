@@ -33,11 +33,11 @@ Refer to `ygg-core` for shared rules, formats, and YGG Point system.
 
 0. **Local LLM check** — `Bash: ygg llm status --json`. If `active !== null`, delegate scoring (step 2) via `ygg llm score --dimensions <dims.json> --input <topic.md>` and proposal synthesis (step 5) via `ygg llm write --type proposal --input <context.json>`. On non-zero exit report and stop — see ygg-core Local LLM Delegation section.
 1. **Check arguments** — if none, request description via AskUserQuestion
-2. **Round 0** — calculate baseFill + auto-verify reference/consistency (CLAUDE.md, package.json, git log) → show score
-3. **Question Loop** — if < 0.95, run YGG Point loop from ygg-core
+2. **Round 0** — calculate baseFill and inspect reference/consistency candidates. Auto-verify them only when `ygg point auto-mode=on`; when `off`, keep them in the user question flow → show score
+3. **Interactive Question Loop** — if `ygg point auto-mode=off`, first require at least 5 user-answered questions for every dimension before proposal finalization. All choices must be presented as numbered options and, in terminal mode, be selectable by number keys or arrow keys. After the minimum is satisfied, continue the normal threshold loop and ask whether to continue beyond the default 5 rounds or generate the proposal as-is
 4. **Create directory** — `ygg/change/{topic-name}/`
 5. **Generate proposal.md** — synthesize Q&A results in ygg-core's proposal format
-6. **Save ygg-point.json** — stage, score, breakdown, history
+6. **Save ygg-point.json** — write the author's original request text at the top level, then keep only the stage summary and per-dimension question/answer trails needed to explain score changes; remove duplicated or unused fields
 7. **Update INDEX.md** — register new topic (🔄 in progress, create)
 8. **Next Steps** — AskUserQuestion: "Continue to design (Recommended)" / "Edit proposal" / "Cancel"
 9. **Auto-chain** — if "Continue to design" selected, immediately run ygg-next workflow inline
@@ -52,5 +52,5 @@ Refer to `ygg-core` for shared rules, formats, and YGG Point system.
 
 - **Topic exists**: overwrite / use different name / Cancel
 - **ygg/ missing**: auto-create
-- **5 rounds without threshold**: offer option to proceed with current score
+- **Low-scoring topic**: when auto-mode is `off`, do not finalize until every dimension has at least 5 user answers; after that, let the user choose whether to continue extra rounds for selected dimensions or finalize below 0.95
 - **Detailed initial input**: fewer questions if baseFill is high (minimum 1 round)

@@ -23,7 +23,7 @@ export const AGENT_DOC_FILENAMES = {
   codex: 'AGENTS.md',
 } as const
 
-export const YGG_COMMANDS = ['create', 'status', 'next', 'prove', 'add', 'qa', 'teams']
+export const YGG_COMMANDS = ['add', 'create', 'next', 'point', 'prove', 'qa', 'status', 'teams']
 
 /** 언어별 템플릿 디렉토리를 반환한다. templates/init/{lang}/ */
 export function getLangDir(lang: string): string {
@@ -37,13 +37,13 @@ export const YGG_SKILLS = ['ygg-core', 'ygg-create', 'ygg-status', 'ygg-next', '
 export const HOOK_SCRIPTS = ['ygg-scope-check.sh', 'ygg-track-change.sh', 'ygg-progress-check.sh', 'ygg-prove.sh', 'ygg-log-change.sh']
 
 export interface InitOptions {
-  /** Claude Code 디렉토리 구조 생성 건너뛰기 */
+  /** Claude 대상 디렉토리 구조 생성 건너뛰기 */
   skipClaude?: boolean
   /** 생성 대상 환경 */
   targets?: SupportedTarget[]
 }
 
-/** init 커맨드: 프로젝트에 .claude/ 디렉토리 + ygg/change/ 구조 생성 */
+/** init 커맨드: 프로젝트에 대상 워크플로우 디렉토리 + ygg/change/ 구조 생성 */
 export async function runInit(projectRoot: string, options: InitOptions): Promise<void> {
   const lang = await resolveLanguage(projectRoot)
   const targets = await resolveInitTargets(options)
@@ -66,7 +66,7 @@ export async function runInit(projectRoot: string, options: InitOptions): Promis
   logger.success(`Initialized @cono-ai/ygg in ${projectRoot}`)
   logger.info('Next steps:')
   if (targets.includes('claude')) {
-    logger.info('  1. /ygg:create <설명>  — Claude에서 proposal 생성')
+    logger.info('  1. /ygg:create <설명>  — 지원 대상 AI에서 proposal 생성')
     logger.info('  2. /ygg:next           — design + spec + tasks 수립')
   }
   if (targets.includes('codex')) {
@@ -162,7 +162,7 @@ async function scaffoldCodexAssets(projectRoot: string, lang: string): Promise<v
   }
 }
 
-/** 루트 에이전트 문서 생성: 공통 가이드 + Claude/Codex 엔트리 */
+/** 루트 에이전트 문서 생성: 공통 가이드 + 대상별 엔트리 */
 async function scaffoldAgentDocs(projectRoot: string, lang: string, targets: SupportedTarget[]): Promise<void> {
   const docsDir = getAgentDocsDir(lang)
   const yggDir = join(projectRoot, 'ygg')

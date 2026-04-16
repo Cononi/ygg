@@ -4,10 +4,12 @@ import { join, dirname } from 'node:path'
 import { parse as parseYaml, stringify as stringifyYaml } from 'yaml'
 
 import { fileExists } from '../utils/file-writer.js'
+import type { YggPointAutoMode } from '../types/ygg-point.js'
 
 const CONFIG_FILE = 'ygg/config.yml'
 export const SUPPORTED_TARGETS = ['claude', 'codex'] as const
 export type SupportedTarget = typeof SUPPORTED_TARGETS[number]
+const SUPPORTED_YGG_POINT_AUTO_MODES = ['on', 'off'] as const
 
 async function readConfig(projectRoot: string): Promise<Record<string, unknown>> {
   const configPath = join(projectRoot, CONFIG_FILE)
@@ -73,6 +75,24 @@ export async function readConfigTargets(projectRoot: string): Promise<SupportedT
   return Array.from(new Set(normalized))
 }
 
+/** ygg/config.yml에서 yggPoint.autoMode 필드를 읽는다 */
+export async function readConfigYggPointAutoMode(projectRoot: string): Promise<YggPointAutoMode | undefined> {
+  const config = await readConfig(projectRoot)
+  if (typeof config['yggPoint'] !== 'object' || config['yggPoint'] === null) {
+    return undefined
+  }
+
+  const yggPoint = config['yggPoint'] as Record<string, unknown>
+  const autoMode = yggPoint['autoMode']
+  if (
+    typeof autoMode === 'string' &&
+    (SUPPORTED_YGG_POINT_AUTO_MODES as readonly string[]).includes(autoMode)
+  ) {
+    return autoMode as YggPointAutoMode
+  }
+  return undefined
+}
+
 /** ygg/config.yml에서 targets 필드를 원본 문자열 배열로 읽는다 */
 export async function readConfigTargetNames(projectRoot: string): Promise<string[] | undefined> {
   const config = await readConfig(projectRoot)
@@ -120,5 +140,16 @@ export async function writeConfigLang(projectRoot: string, lang: string): Promis
 export async function writeConfigTargets(projectRoot: string, targets: SupportedTarget[]): Promise<void> {
   const config = await readConfig(projectRoot)
   config['targets'] = Array.from(new Set(targets))
+  await writeConfig(projectRoot, config)
+}
+
+/** ygg/config.yml에 yggPoint.autoMode 필드를 저장한다. 기존 필드는 보존. */
+export async function writeConfigYggPointAutoMode(projectRoot: string, autoMode: YggPointAutoMode): Promise<void> {
+  const config = await readConfig(projectRoot)
+  const yggPoint = (typeof config['yggPoint'] === 'object' && config['yggPoint'] !== null)
+    ? { ...(config['yggPoint'] as Record<string, unknown>) }
+    : {}
+  yggPoint['autoMode'] = autoMode
+  config['yggPoint'] = yggPoint
   await writeConfig(projectRoot, config)
 }

@@ -19,7 +19,7 @@ Evidence-based verification. No guessing — prove with actual command output.
 
 ## Workflow
 
-0. **Local LLM check** — `Bash: ygg llm status --json`. If `active !== null`, delegate build/test/lint log summarization (step 4 evidence synthesis) via `ygg llm summarize --input <log>`. Code fixes remain on Claude. On non-zero exit report and stop — see ygg-core Local LLM Delegation section.
+0. **Local LLM check** — `Bash: ygg llm status --json`. If `active !== null`, delegate build/test/lint log summarization (step 4 evidence synthesis) via `ygg llm summarize --input <log>`. Code fixes remain on the primary AI. On non-zero exit report and stop — see ygg-core Local LLM Delegation section.
 1. **Find active topic** — locate stage=`add` topic in INDEX.md (see ygg-core)
 2. **Read verification documents** — tasks.md (verification section), specs/, design.md
 3. **Run verification**:

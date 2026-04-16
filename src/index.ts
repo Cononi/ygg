@@ -40,11 +40,19 @@ export type {
   Dimension,
   DimensionScore,
   QAEntry,
+  YggPointAnswerSource,
   YggPointResult,
   YggPointQuestion,
   YggPointConfig,
+  YggPointLoopOptions,
+  YggPointLoopResult,
   StageName,
   StageDefinition,
+  YggPointArchiveType,
+  YggPointDimensionDetail,
+  YggPointStageSnapshot,
+  YggPointLegacyDimensionSummary,
+  YggPointDocument,
 } from './types/ygg-point.js'
 
 // Core
@@ -52,9 +60,12 @@ export { parseComponentSpec, inferComponentType } from './core/spec-parser.js'
 export { buildSinglePlan } from './core/plan-builder.js'
 export { executeGenerate } from './core/generator.js'
 export { validateOutput } from './core/validator.js'
-export { YggPointEngine } from './core/ygg-point.js'
+export { YggPointEngine, isYggPointAutoModeEnabled, resolveYggPointAutoMode } from './core/ygg-point.js'
+export { createYggPointDocument } from './core/ygg-point.js'
 export { createStageDefinition } from './core/dimensions/create.js'
 export { nextStageDefinition } from './core/dimensions/next.js'
+export { runCreate } from './commands/create.js'
+export { runNext } from './commands/next.js'
 
 // Generators
 export { generateAgent } from './generators/agent-generator.js'

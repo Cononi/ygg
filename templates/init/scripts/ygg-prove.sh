@@ -11,38 +11,73 @@ warn() { WARN=$((WARN+1)); echo "  ⚠️  $1"; }
 section() { echo ""; echo "━━━ $1 ━━━"; }
 check_dir() { [ -d "$1" ] && pass "$1 exists" || ${2:-fail} "$1 missing"; }
 check_file() { [ -f "$1" ] && pass "$1 exists" || ${2:-fail} "$1 missing"; }
+has_claude_layout() { [ -d ".claude" ]; }
+has_codex_layout() { [ -d ".codex" ] || [ -f "AGENTS.md" ]; }
 
 section "1. Directories"
-for d in .claude .claude/agents .claude/commands/ygg .claude/scripts ygg ygg/change; do
-  check_dir "$d"
-done
+check_dir "ygg"
+check_dir "ygg/change"
 check_dir "ygg/change/archive" warn
+if has_claude_layout; then
+  for d in .claude .claude/agents .claude/commands/ygg .claude/scripts; do
+    check_dir "$d"
+  done
+else
+  warn ".claude layout not present"
+fi
+if has_codex_layout; then
+  check_dir ".codex" warn
+  check_dir ".codex/skills" warn
+else
+  warn ".codex layout not present"
+fi
 
 section "2. Agent"
 if [ -f ".claude/agents/dev.md" ]; then
   pass "dev.md exists"
   grep -q "^name: dev" .claude/agents/dev.md && pass "has name" || fail "missing name"
   grep -q "^description:" .claude/agents/dev.md && pass "has description" || fail "missing description"
+elif [ -f "AGENTS.md" ]; then
+  pass "AGENTS.md exists"
+  grep -q "Codex Guide" AGENTS.md && pass "AGENTS has codex guide" || warn "AGENTS missing Codex Guide heading"
 else
-  fail "dev.md missing"
+  fail "no supported agent document found"
 fi
 
 section "3. Commands"
-for cmd in create status next prove add qa lang; do
-  check_file ".claude/commands/ygg/${cmd}.md"
-done
+if has_claude_layout; then
+  for cmd in create status next prove add qa lang; do
+    check_file ".claude/commands/ygg/${cmd}.md"
+  done
+else
+  warn "Claude commands skipped in Codex-only layout"
+fi
 
 section "4. Skills"
-for skill in ygg-core ygg-create ygg-status ygg-next ygg-prove ygg-add ygg-qa ygg-lang; do
-  f=".claude/skills/${skill}/SKILL.md"
-  if [ -f "$f" ]; then
-    pass "${skill} exists"
-    grep -q "^name: ${skill}" "$f" && pass "${skill} name" || fail "${skill} missing name"
-    grep -q "allowed_tools:" "$f" && pass "${skill} tools" || fail "${skill} missing tools"
-  else
-    fail "${skill} missing"
-  fi
-done
+if has_claude_layout; then
+  for skill in ygg-core ygg-create ygg-status ygg-next ygg-prove ygg-add ygg-qa ygg-lang; do
+    f=".claude/skills/${skill}/SKILL.md"
+    if [ -f "$f" ]; then
+      pass "${skill} exists"
+      grep -q "^name: ${skill}" "$f" && pass "${skill} name" || fail "${skill} missing name"
+      grep -q "allowed_tools:" "$f" && pass "${skill} tools" || fail "${skill} missing tools"
+    else
+      fail "${skill} missing"
+    fi
+  done
+fi
+if has_codex_layout; then
+  for skill in ygg-core ygg-create ygg-status ygg-next ygg-prove ygg-add ygg-qa ygg-teams; do
+    f=".codex/skills/${skill}/SKILL.md"
+    if [ -f "$f" ]; then
+      pass "codex ${skill} exists"
+      grep -q "^name: ${skill}" "$f" && pass "codex ${skill} name" || fail "codex ${skill} missing name"
+      grep -q "^description:" "$f" && pass "codex ${skill} description" || fail "codex ${skill} missing description"
+    else
+      fail "codex ${skill} missing"
+    fi
+  done
+fi
 
 section "5. Hooks"
 if [ -f ".claude/settings.json" ]; then
@@ -57,12 +92,22 @@ if [ -f ".claude/settings.json" ]; then
     grep -q "\"${hook}\"" .claude/settings.json && pass "${hook} configured" || fail "${hook} missing"
   done
 else
-  fail "settings.json missing"
+  if has_claude_layout; then
+    fail "settings.json missing"
+  else
+    warn "Claude hooks skipped in Codex-only layout"
+  fi
 fi
 
 section "6. Scripts"
+SCRIPT_BASE=""
+if [ -d ".claude/scripts" ]; then
+  SCRIPT_BASE=".claude/scripts"
+elif [ -d "templates/init/scripts" ]; then
+  SCRIPT_BASE="templates/init/scripts"
+fi
 for script in ygg-scope-check.sh ygg-track-change.sh ygg-progress-check.sh ygg-log-change.sh ygg-prove.sh; do
-  f=".claude/scripts/${script}"
+  f="${SCRIPT_BASE}/${script}"
   if [ -f "$f" ]; then
     pass "${script} exists"
     [ -x "$f" ] && pass "executable" || fail "not executable (chmod +x $f)"
@@ -78,7 +123,10 @@ check_file "ygg/change/INDEX.md" warn
 
 section "8. Active Topic"
 if [ -f "ygg/change/INDEX.md" ]; then
-  ACTIVE=$(grep "진행중" ygg/change/INDEX.md | head -1 | sed 's/|//g' | awk '{print $1}' | xargs)
+  ACTIVE=$(
+    grep -E "진행중|진행 중" ygg/change/INDEX.md | head -1 \
+      | sed -n 's/.*\[\([^]]*\)\](.*/\1/p'
+  )
   if [ -n "$ACTIVE" ] && [ -d "ygg/change/${ACTIVE}" ]; then
     pass "topic '${ACTIVE}' exists"
     check_file "ygg/change/${ACTIVE}/proposal.md" warn
@@ -90,19 +138,20 @@ else
 fi
 
 section "9. Integration"
-if [ -f ".claude/scripts/ygg-scope-check.sh" ]; then
-  CLAUDE_TOOL_INPUT_FILE_PATH="test/outside.ts" bash .claude/scripts/ygg-scope-check.sh >/dev/null 2>&1
+if [ -n "$SCRIPT_BASE" ] && [ -f "${SCRIPT_BASE}/ygg-scope-check.sh" ]; then
+  CLAUDE_TOOL_INPUT_FILE_PATH="test/outside.ts" bash "${SCRIPT_BASE}/ygg-scope-check.sh" >/dev/null 2>&1
   pass "scope-check runs"
 fi
-if [ -f ".claude/scripts/ygg-track-change.sh" ]; then
+if [ -n "$SCRIPT_BASE" ] && [ -f "${SCRIPT_BASE}/ygg-track-change.sh" ]; then
   rm -f .ygg-changed
-  CLAUDE_TOOL_INPUT_FILE_PATH="src/test.ts" bash .claude/scripts/ygg-track-change.sh 2>/dev/null
+  CLAUDE_TOOL_INPUT_FILE_PATH="src/test.ts" bash "${SCRIPT_BASE}/ygg-track-change.sh" 2>/dev/null
   [ -f .ygg-changed ] && grep -q "src/test.ts" .ygg-changed && pass "track-change works" || fail "track-change failed"
   rm -f .ygg-changed
 fi
-if [ -f ".claude/scripts/ygg-progress-check.sh" ]; then
+if [ -n "$SCRIPT_BASE" ] && [ -f "${SCRIPT_BASE}/ygg-progress-check.sh" ]; then
   echo "src/test.ts" > .ygg-changed
-  bash .claude/scripts/ygg-progress-check.sh 2>&1 | grep -q "\[ygg\]" && pass "progress-check works" || fail "progress-check failed"
+  PROGRESS_OUTPUT="$(bash "${SCRIPT_BASE}/ygg-progress-check.sh" 2>&1 || true)"
+  echo "$PROGRESS_OUTPUT" | grep -q "\[ygg\]" && pass "progress-check works" || fail "progress-check failed"
   rm -f .ygg-changed
 fi
 

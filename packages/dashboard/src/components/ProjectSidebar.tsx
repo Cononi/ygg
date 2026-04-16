@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Stack from '@mui/material/Stack'
@@ -17,6 +17,7 @@ import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
 import TaskAltOutlinedIcon from '@mui/icons-material/TaskAltOutlined'
 import { api } from '../api/client'
 import type { ProjectInfo } from '../types'
+import { createLatestRequestGuard } from '../utils/projectViewState'
 
 export default function ProjectSidebar() {
   const navigate = useNavigate()
@@ -27,19 +28,50 @@ export default function ProjectSidebar() {
   const [addPath, setAddPath] = useState('')
   const [adding, setAdding] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
+  const [dashboardVersion, setDashboardVersion] = useState<string | null>(null)
+  const loadGuardRef = useRef(createLatestRequestGuard())
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (selectedProjectId?: string) => {
+    const requestId = loadGuardRef.current.begin()
+
     try {
       setLoading(true)
-      const { projects: list } = await api.projects.list()
-      setProjects(list)
+      const [{ projects: list }, versionInfo] = await Promise.all([
+        api.projects.list(),
+        api.version().catch(() => ({ version: '' })),
+      ])
+      if (!loadGuardRef.current.isCurrent(requestId)) return
+
+      if (selectedProjectId) {
+        const refreshed = await api.projects.get(selectedProjectId).catch(() => null)
+        if (!loadGuardRef.current.isCurrent(requestId)) return
+
+        const nextProjects = list.map(project =>
+          project.id === selectedProjectId && refreshed
+            ? refreshed.info
+            : project,
+        )
+        setProjects(nextProjects)
+      } else {
+        setProjects(list)
+      }
+      setDashboardVersion(versionInfo.version || null)
     } finally {
+      if (!loadGuardRef.current.isCurrent(requestId)) return
       setLoading(false)
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { void load(currentId) }, [load, currentId])
   const completedProjects = projects.filter(project => project.changeStatus.done > 0).length
+
+  const handleSelectProject = useCallback((project: ProjectInfo) => {
+    navigate(`/projects/${project.id}`, {
+      state: {
+        projectInfo: project,
+      },
+    })
+  }, [navigate])
 
   const handleAdd = async () => {
     if (!addPath.trim()) return
@@ -66,7 +98,10 @@ export default function ProjectSidebar() {
             <Typography variant="overline" color="text.secondary">
               Workspace
             </Typography>
-            <Typography variant="h6">Projects</Typography>
+            <Stack direction="row" spacing={1} alignItems="center" useFlexGap flexWrap="wrap">
+              <Typography variant="h6">Projects</Typography>
+              {dashboardVersion && <Chip label={`ygg v${dashboardVersion}`} size="small" variant="outlined" />}
+            </Stack>
             <Typography variant="body2" color="text.secondary">
               운영 중인 ygg 프로젝트와 버전 상태를 한곳에서 관리합니다.
             </Typography>
@@ -113,7 +148,7 @@ export default function ProjectSidebar() {
             return (
               <Paper
                 key={p.id}
-                onClick={() => navigate(`/projects/${p.id}`)}
+                onClick={() => void handleSelectProject(p)}
                 variant="outlined"
                 sx={{
                   p: 1.5,
@@ -136,18 +171,28 @@ export default function ProjectSidebar() {
                         {p.path}
                       </Typography>
                     </Box>
-                    <Chip
-                      label={`v${p.projectVersion ?? '0.0.0'}`}
-                      color={isSelected ? 'primary' : 'default'}
-                      size="small"
-                      sx={{ flexShrink: 0, fontSize: '0.65rem' }}
-                      title={`ygg v${p.yggVersion ?? '?'} | 프로젝트 v${p.projectVersion ?? '0.0.0'}`}
-                    />
+                    <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" sx={{ flexShrink: 0 }}>
+                      <Chip
+                        label={`p ${p.projectVersion ?? '0.0.0'}`}
+                        color={isSelected ? 'primary' : 'default'}
+                        size="small"
+                        sx={{ fontSize: '0.65rem' }}
+                        title={`프로젝트 버전 v${p.projectVersion ?? '0.0.0'}`}
+                      />
+                      <Chip
+                        label={`y ${p.yggVersion ?? '?'}`}
+                        size="small"
+                        variant="filled"
+                        color={isSelected ? 'primary' : 'default'}
+                        sx={{ fontSize: '0.65rem' }}
+                        title={`ygg CLI v${p.yggVersion ?? '?'}`}
+                      />
+                    </Stack>
                   </Box>
 
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip icon={<FolderOpenOutlinedIcon />} label={`${p.changeStatus.inProgress} active`} size="small" variant="outlined" />
-                    <Chip icon={<TaskAltOutlinedIcon />} label={`${p.changeStatus.done} done`} size="small" variant="outlined" />
+                    <Chip icon={<FolderOpenOutlinedIcon />} label={`진행 ${p.changeStatus.inProgress}`} size="small" variant="outlined" />
+                    <Chip icon={<TaskAltOutlinedIcon />} label={`보관 ${p.changeStatus.done}`} size="small" variant="outlined" />
                   </Stack>
                 </Stack>
               </Paper>

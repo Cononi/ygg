@@ -13,6 +13,7 @@ export interface ActiveChangeEntry {
 export interface ArchiveChangeEntry {
   topic: string
   description: string
+  type?: string
   version: string
   latest: string
   date: string
@@ -31,8 +32,8 @@ export interface SyncChangeIndexResult {
 
 const ACTIVE_HEADER = '| 토픽 | 상태 | 단계 | YGG Point | 설명 | 마지막 날짜 |'
 const ACTIVE_SEPARATOR = '|---|---|---|---|---|---|'
-const ARCHIVE_HEADER = '| 토픽 | 설명 | 버전 | 최신 | 날짜 |'
-const ARCHIVE_SEPARATOR = '|---|---|---|---|---|'
+const ARCHIVE_HEADER = '| 토픽 | 설명 | 유형 | 버전 | 최신 | 날짜 |'
+const ARCHIVE_SEPARATOR = '|---|---|---|---|---|---|'
 
 function normalizeCell(value: string | undefined): string {
   const trimmed = value?.trim() ?? ''
@@ -48,6 +49,7 @@ function parseHeaderColumns(headerLine: string): Record<string, number> {
     if (/단계/i.test(col)) map['stage'] = i
     if (/ygg.?point/i.test(col)) map['yggPoint'] = i
     if (/설명/i.test(col)) map['description'] = i
+    if (/유형/i.test(col)) map['type'] = i
     if (/버전/i.test(col)) map['version'] = i
     if (/최신/i.test(col)) map['latest'] = i
     if (/날짜/i.test(col)) map['date'] = i
@@ -99,6 +101,7 @@ export function parseChangeIndex(content: string): ParsedChangeIndex {
       archiveTopics.push({
         topic,
         description: readColumn(cols, colMap, 'description'),
+        type: readColumn(cols, colMap, 'type'),
         version: readColumn(cols, colMap, 'version'),
         latest: readColumn(cols, colMap, 'latest'),
         date: readColumn(cols, colMap, 'date'),
@@ -124,7 +127,7 @@ function formatActiveRow(entry: ActiveChangeEntry): string {
 }
 
 function formatArchiveRow(entry: ArchiveChangeEntry): string {
-  return `| [${entry.topic}](./archive/${entry.topic}/) | ${normalizeCell(entry.description)} | ${normalizeCell(entry.version)} | ${normalizeCell(entry.latest)} | ${normalizeCell(entry.date)} |`
+  return `| [${entry.topic}](./archive/${entry.topic}/) | ${normalizeCell(entry.description)} | ${normalizeCell(entry.type)} | ${normalizeCell(entry.version)} | ${normalizeCell(entry.latest)} | ${normalizeCell(entry.date)} |`
 }
 
 export function serializeChangeIndex(model: ParsedChangeIndex): string {
@@ -241,28 +244,7 @@ export async function findLatestTopicDate(topicDir: string): Promise<string | un
     if (datedFiles.length > 0) {
       return datedFiles[datedFiles.length - 1]
     }
-
-    const fallbackFiles = ['proposal.md', 'design.md', 'tasks.md', 'ygg-point.json']
-    const fallbackTimes = await Promise.all(
-      fallbackFiles.map(async (file) => {
-        try {
-          const info = await stat(join(topicDir, file))
-          return info.mtime
-        } catch {
-          return null
-        }
-      }),
-    )
-    const latest = fallbackTimes
-      .filter((value): value is Date => value instanceof Date)
-      .sort((a, b) => b.getTime() - a.getTime())[0]
-
-    if (!latest) return undefined
-
-    const year = latest.getFullYear()
-    const month = String(latest.getMonth() + 1).padStart(2, '0')
-    const day = String(latest.getDate()).padStart(2, '0')
-    return `${year}-${month}-${day}`
+    return undefined
   } catch {
     return undefined
   }
@@ -272,6 +254,7 @@ function normalizeArchiveEntry(entry: ArchiveChangeEntry): ArchiveChangeEntry {
   return {
     topic: entry.topic,
     description: normalizeCell(entry.description),
+    type: normalizeCell(entry.type),
     version: normalizeCell(entry.version),
     latest: normalizeCell(entry.latest),
     date: normalizeCell(entry.date),

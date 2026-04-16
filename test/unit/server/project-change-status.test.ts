@@ -88,4 +88,49 @@ describe('project change status summary', () => {
 
     await app.close()
   })
+
+  it('returns project detail even when change index sync cannot normalize the project', async () => {
+    vi.doMock('../../../src/core/change-index.js', async () => {
+      const actual = await vi.importActual<typeof import('../../../src/core/change-index.js')>(
+        '../../../src/core/change-index.js',
+      )
+      return {
+        ...actual,
+        syncChangeIndex: vi.fn().mockRejectedValue(new Error('sync failed')),
+      }
+    })
+
+    const { addProject } = await import('../../../src/server/registry.js')
+    const { createServer } = await import('../../../src/server/index.js')
+
+    const project = await addProject(projectRoot, '1.0.0')
+    const app = await createServer()
+
+    const res = await app.inject({ method: 'GET', url: `/api/projects/${project.id}` })
+    expect(res.statusCode).toBe(200)
+
+    const payload = res.json() as {
+      info: {
+        changeStatus: {
+          total: number
+          inProgress: number
+          done: number
+        }
+        latestReleaseVersion?: string
+        latestReleaseDate?: string
+      }
+      targets: Array<unknown>
+    }
+
+    expect(payload.info.changeStatus).toEqual({
+      total: 0,
+      inProgress: 0,
+      done: 0,
+    })
+    expect(payload.info.latestReleaseVersion).toBeUndefined()
+    expect(payload.info.latestReleaseDate).toBeUndefined()
+    expect(Array.isArray(payload.targets)).toBe(true)
+
+    await app.close()
+  })
 })

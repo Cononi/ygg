@@ -27,7 +27,7 @@ type TargetFileResolver = {
 
 const TARGET_FILE_RESOLVERS: Record<string, TargetFileResolver> = {
   claude: {
-    label: 'Claude Code',
+    label: 'Claude',
     async listFiles(projectPath: string): Promise<FileCollections> {
       const claudeDir = join(projectPath, '.claude')
       const [skills, agents, commands] = await Promise.all([

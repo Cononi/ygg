@@ -43,7 +43,7 @@ ygg/change/
 │   ├── design.md            ← next
 │   ├── specs/{component}/spec.md ← next
 │   ├── tasks.md             ← next
-│   ├── ygg-point.json       ← scoring history
+│   ├── ygg-point.json       ← stage-local score trails with linked Q&A
 │   └── YYYY-MM-DD.md        ← add (daily change log)
 └── archive/                 ← moved here after qa passes
 ```
@@ -59,7 +59,11 @@ Score-based question loop. Generates documents when 0.95+ is reached.
 - **reference/consistency**: auto-verified from code/documents
 
 **Loop**: ask 1–3 questions about the lowest-scoring dimension → incorporate answers → recalculate → repeat.
-After 5 rounds without reaching threshold, offer option to proceed with current score.
+In `ygg-create` and `ygg-next`, auto-verifiable `reference` / `consistency` evaluators must follow `ygg point auto-mode`: answer them internally first only when it is `on`, and keep them in the user-driven clarification flow when it is `off`.
+When `ygg point auto-mode` is `off`, `create` and `next` must collect at least 5 user-answered questions for every dimension before finalizing the stage, even if the score reaches 0.95 earlier.
+After that minimum is satisfied, if the stage is still below the threshold, ask whether to continue raising selected dimensions with additional rounds or finalize as-is.
+Every saved answer must stay linked to its dimension, evaluator, answer source, score-before, and score-after values inside the owning dimension trail so Topic Detail can explain how each score moved. `questionTrail.round` must restart at `1` inside each dimension and show that dimension's step-by-step score lift.
+Continue the loop until the stage reaches 0.95+ readiness.
 
 ## Document Formats
 
@@ -79,6 +83,10 @@ Numbered step-by-step `- [ ]` checklist. Last step is always "verification".
 `| Topic | Status | Stage | Last Date |` table + Archive section.
 Status: 🔄 in progress / ✅ complete. Stage: create → next → add → qa.
 
+### ygg-point.json
+Do not generate a duplicated top-level `history` block. Keep the question/answer trace only inside each dimension's `questionTrail`.
+Prefer a lean schema: keep top-level original request text plus score/status metadata, stage-local `initialScore`, `finalScore`, `delta`, and the per-dimension `questionTrail` details needed to explain score movement. Remove duplicated or unused fields.
+
 ## Active Topic Detection
 
 1. Read `ygg/change/INDEX.md`
@@ -93,9 +101,10 @@ Status: 🔄 in progress / ✅ complete. Stage: create → next → add → qa.
 4. Follow spec constraints
 5. Update tasks.md immediately
 6. Always use AskUserQuestion — never auto-select
-7. Mark recommended options with `(Recommended)`, always include Cancel/Skip
-8. Do not use deprecated APIs — migrate to latest alternatives
-9. Keep all ygg/ documents under 200 lines
+7. Every user choice must be shown as a numbered option list, and terminal flows must also support arrow-key selection
+8. Mark recommended options with `(Recommended)`, always include Cancel/Skip
+9. Do not use deprecated APIs — migrate to latest alternatives
+10. Keep all ygg/ documents under 200 lines
 
 ## Reading Rules
 
@@ -109,7 +118,7 @@ Status: 🔄 in progress / ✅ complete. Stage: create → next → add → qa.
 
 ## Local LLM Delegation (LM Studio)
 
-When `llm.active` is not null (set by `ygg llm`), the `ygg:add` stage can delegate code generation to LM Studio to save Claude tokens.
+When `llm.active` is not null (set by `ygg llm`), the `ygg:add` stage can delegate code generation to LM Studio to save primary-model tokens.
 
 **Check first** — `ygg:add` runs `Bash: ygg llm status --json` as its step 0. If `active === null`, skip delegation and implement directly.
 
@@ -117,11 +126,11 @@ When `llm.active` is not null (set by `ygg llm`), the `ygg:add` stage can delega
 
 | Work | When enabled | When disabled |
 |------|--------------|---------------|
-| `ygg:add` code draft generation | `ygg llm code --context <file> --task <desc>` → stdout | Claude |
-| `ygg:add` file apply (Write/Edit) | Claude | Claude |
-| code reading (Read/Grep/Glob) | Claude | Claude |
-| create/next/qa document synthesis | Claude | Claude |
+| `ygg:add` code draft generation | `ygg llm code --context <file> --task <desc>` → stdout | Primary AI |
+| `ygg:add` file apply (Write/Edit) | Primary AI | Primary AI |
+| code reading (Read/Grep/Glob) | Primary AI | Primary AI |
+| create/next/qa document synthesis | Primary AI | Primary AI |
 
-**Never delegate**: create/next/qa stages, document synthesis, design decisions — all stay on Claude.
+**Never delegate**: create/next/qa stages, document synthesis, design decisions — all stay on the primary AI.
 
 **Failure handling**: if `ygg llm code` exits non-zero (2=disabled, 8=timeout, 10=context not found, 12=adapter error), fall back to writing code directly and log the reason.

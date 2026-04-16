@@ -29,14 +29,14 @@ Refer to `ygg-core` for shared rules, formats, and YGG Point system.
 
 0. **Local LLM check** — `Bash: ygg llm status --json`. If `active !== null`, delegate scoring (step 4) via `ygg llm score`, and design/specs/tasks synthesis (steps 6–8) via `ygg llm write --type design|spec|tasks`. On non-zero exit report and stop — see ygg-core Local LLM Delegation section.
 1. **Find active topic** — locate stage=`create` topic in INDEX.md (see ygg-core)
-2. **Read proposal.md + ygg-point.json** — use create history to avoid duplicate questions
+2. **Read proposal.md + ygg-point.json** — use create stage score trails to avoid duplicate questions and preserve why scores changed
 3. **Analyze codebase** — source related to Impact, architecture, dependencies, tests, git log
-4. **Round 0** — calculate baseFill from proposal + code analysis, auto-verify reference/consistency → show score
-5. **Question Loop** — if < 0.95, run YGG Point loop from ygg-core
+4. **Round 0** — calculate baseFill from proposal + code analysis, and inspect reference/consistency candidates. Auto-verify them only when `ygg point auto-mode=on`; when `off`, keep them in the user question flow → show score
+5. **Question Loop** — if `ygg point auto-mode=off`, first require at least 5 user-answered questions for every dimension before generating design/spec/tasks. All choices must be presented as numbered options and, in terminal mode, be selectable by number keys or arrow keys. After the minimum is satisfied, continue the normal threshold loop and ask whether to continue beyond the default 5 rounds
 6. **Generate design.md** — synthesize Q&A + proposal + code analysis in ygg-core's design format
 7. **Generate specs/** — per-component spec.md (ygg-core format)
 8. **Generate tasks.md** — checklist based on Migration Plan order in design (ygg-core format)
-9. **Update ygg-point.json** — add next stage history
+9. **Update ygg-point.json** — add next stage summary and dimension score trails while preserving the top-level original request text
 10. **Update INDEX.md** — change stage to `next`
 11. **Summary + Next** — AskUserQuestion: "Start implementation (Recommended)" / "Edit design/spec/tasks" / "Cancel"
 12. **Auto-chain** — if "Start implementation" selected, immediately run ygg-add workflow inline

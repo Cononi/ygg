@@ -13,7 +13,10 @@ import {
   EXIT_LLM_TIMEOUT,
   __setProviderFactoryForTests,
   runLlmCode,
+  runLlmScore,
   runLlmStatus,
+  runLlmSummarize,
+  runLlmWrite,
 } from '../../../src/commands/llm.js'
 import { LlmAdapterError } from '../../../src/llm/adapter.js'
 import type { LmStudioProvider } from '../../../src/llm/lm-studio-provider.js'
@@ -106,6 +109,45 @@ describe('runLlmCode', () => {
     const callArgs = vi.mocked(provider.complete).mock.calls[0]
     expect(callArgs?.[0]).toContain('MY_CONTEXT_CONTENT')
     expect(callArgs?.[0]).toContain('MY_TASK')
+  })
+})
+
+// ─── Delegated text commands ─────────────────────────────────────────────
+
+describe('delegated text commands', () => {
+  it('runLlmScore 정상 실행 → console.log로 결과 출력', async () => {
+    await writeLlmConfig(projectRoot, { active: 'llama3.2', baseUrl: 'http://localhost:1234', models: ['llama3.2'] })
+    __setProviderFactoryForTests(() => mockProvider('{"totalScore":0.97}'))
+    const dimensionsPath = join(projectRoot, 'dimensions.json')
+    const inputPath = join(projectRoot, 'input.md')
+    await writeFile(dimensionsPath, '{"scope":{"weight":1}}', 'utf-8')
+    await writeFile(inputPath, '# change', 'utf-8')
+
+    await runLlmScore(projectRoot, { dimensions: dimensionsPath, input: inputPath })
+
+    expect(process.exitCode).toBeUndefined()
+    expect(vi.mocked(console.log)).toHaveBeenCalledWith('{"totalScore":0.97}')
+  })
+
+  it('runLlmWrite 입력 파일 없음 → EXIT_CONTEXT_NOT_FOUND', async () => {
+    await writeLlmConfig(projectRoot, { active: 'llama3.2', baseUrl: 'http://localhost:1234', models: ['llama3.2'] })
+
+    await runLlmWrite(projectRoot, { type: 'proposal', input: join(projectRoot, 'missing.json') })
+
+    expect(process.exitCode).toBe(EXIT_CONTEXT_NOT_FOUND)
+  })
+
+  it('runLlmSummarize 프롬프트에 로그 내용 포함', async () => {
+    await writeLlmConfig(projectRoot, { active: 'llama3.2', baseUrl: 'http://localhost:1234', models: ['llama3.2'] })
+    const provider = mockProvider('summary')
+    __setProviderFactoryForTests(() => provider)
+    const logPath = join(projectRoot, 'qa.log')
+    await writeFile(logPath, 'FAIL one test', 'utf-8')
+
+    await runLlmSummarize(projectRoot, { input: logPath })
+
+    const callArgs = vi.mocked(provider.complete).mock.calls[0]
+    expect(callArgs?.[0]).toContain('FAIL one test')
   })
 })
 

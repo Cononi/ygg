@@ -112,4 +112,54 @@ describe('dashboard target-aware file sources', () => {
 
     await app.close()
   })
+
+  it('keeps project list available when one project has broken metadata', async () => {
+    const brokenProjectRoot = await mkdtemp(join(tmpdir(), 'ygg-project-broken-'))
+
+    try {
+      await mkdir(join(brokenProjectRoot, 'ygg', 'change', 'broken-topic'), { recursive: true })
+      await writeFile(
+        join(brokenProjectRoot, 'ygg', 'config.yml'),
+        ['targets:', '  - codex', 'projectVersion: 0.0.0', ''].join('\n'),
+        'utf-8',
+      )
+      await writeFile(
+        join(brokenProjectRoot, 'ygg', 'change', 'INDEX.md'),
+        [
+          '# Change Index',
+          '',
+          '| 토픽 | 상태 | 단계 | YGG Point | 설명 | 마지막 날짜 |',
+          '|---|---|---|---|---|---|',
+          '| [broken-topic](./broken-topic/) | 🔄 진행중 | add | 0.95 | broken topic | 2026-04-15 |',
+          '',
+          '### Archive',
+          '| 토픽 | 설명 | 버전 | 최신 | 날짜 |',
+          '|---|---|---|---|---|',
+          '| [missing-archive](./archive/missing-archive/) | orphan row | v0.0.1 | latest | 2026-04-15 |',
+          '',
+        ].join('\n'),
+        'utf-8',
+      )
+
+      const { addProject } = await import('../../../src/server/registry.js')
+      const { createServer } = await import('../../../src/server/index.js')
+
+      await addProject(projectRoot, '1.0.0')
+      await addProject(brokenProjectRoot, '1.0.0')
+      const app = await createServer()
+
+      const res = await app.inject({ method: 'GET', url: '/api/projects' })
+      expect(res.statusCode).toBe(200)
+
+      const payload = res.json() as {
+        projects: Array<{ path: string; changeStatus: { total: number } }>
+      }
+      expect(payload.projects).toHaveLength(2)
+      expect(payload.projects.some(project => project.path === brokenProjectRoot)).toBe(true)
+
+      await app.close()
+    } finally {
+      await rm(brokenProjectRoot, { recursive: true, force: true })
+    }
+  })
 })

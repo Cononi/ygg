@@ -7,6 +7,7 @@ import type { FastifyInstance } from 'fastify'
 
 import { runUpdate } from '../../commands/update.js'
 import { syncChangeIndex } from '../../core/change-index.js'
+import type { ParsedChangeIndex, SyncChangeIndexResult } from '../../core/change-index.js'
 import { readConfigProjectVersion } from '../../i18n/config.js'
 import { loadRegistry, addProject, removeProject, findProject } from '../registry.js'
 import type { ProjectEntry } from '../registry.js'
@@ -43,6 +44,12 @@ interface ArchiveReleaseInfo {
   date?: string
 }
 
+const EMPTY_CHANGE_STATUS: ChangeStatus = {
+  total: 0,
+  inProgress: 0,
+  done: 0,
+}
+
 async function readYggVersion(projectPath: string): Promise<string | undefined> {
   try {
     const content = await readFile(join(projectPath, 'ygg', '.ygg-version'), 'utf-8')
@@ -64,74 +71,38 @@ function compareVersions(projectVersion: string | undefined, currentVersion: str
   return 'latest'
 }
 
-async function readLatestArchiveRelease(indexPath: string): Promise<ArchiveReleaseInfo> {
-  try {
-    const content = await readFile(indexPath, 'utf-8')
-    const lines = content.split('\n')
-    let inArchive = false
-    let versionIdx = -1
-    let latestIdx = -1
-    let dateIdx = -1
-    let fallbackRow: string[] | null = null
+function buildChangeStatus(model: ParsedChangeIndex): ChangeStatus {
+  return {
+    total: model.topics.length + model.archiveTopics.length,
+    inProgress: model.topics.length,
+    done: model.archiveTopics.length,
+  }
+}
 
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (/^#+\s+Archive/i.test(trimmed)) {
-        inArchive = true
-        versionIdx = -1
-        latestIdx = -1
-        dateIdx = -1
-        continue
-      }
-
-      if (!inArchive || !line.startsWith('|')) continue
-      if (/^\|[-\s|]+\|$/.test(line)) continue
-
-      const cols = line.split('|').map(col => col.trim()).filter(Boolean)
-      if (!cols.length) continue
-
-      if (versionIdx === -1 && cols.some(col => /토픽/i.test(col))) {
-        versionIdx = cols.findIndex(col => /버전/i.test(col))
-        latestIdx = cols.findIndex(col => /최신/i.test(col))
-        dateIdx = cols.findIndex(col => /날짜/i.test(col))
-        continue
-      }
-
-      fallbackRow = cols
-      if (latestIdx !== -1 && cols[latestIdx] === 'latest') {
-        return {
-          version: versionIdx !== -1 ? cols[versionIdx] : undefined,
-          date: dateIdx !== -1 ? cols[dateIdx] : undefined,
-        }
-      }
-    }
-
-    return {
-      version: fallbackRow && versionIdx !== -1 ? fallbackRow[versionIdx] : undefined,
-      date: fallbackRow && dateIdx !== -1 ? fallbackRow[dateIdx] : undefined,
-    }
-  } catch {
-    return {}
+function readLatestArchiveRelease(model: ParsedChangeIndex): ArchiveReleaseInfo {
+  const latest = model.archiveTopics.find((entry) => entry.latest === 'latest') ?? model.archiveTopics[0]
+  return {
+    version: latest?.version,
+    date: latest?.date,
   }
 }
 
 async function getProjectInfo(entry: ProjectEntry, currentVersion: string): Promise<ProjectInfo> {
-  const changeIndexPath = join(entry.path, 'ygg', 'change', 'INDEX.md')
-  await syncChangeIndex(entry.path)
+  const syncResult = await safeSyncChangeIndex(entry.path)
 
-  const [targetSources, projectYggVersion, latestRelease] = await Promise.all([
-    listTargetFileSources(entry.path),
+  const [targetSources, projectYggVersion, projectVersion] = await Promise.all([
+    safeListTargetFileSources(entry.path),
     readYggVersion(entry.path),
-    readLatestArchiveRelease(changeIndexPath),
+    safeReadProjectVersion(entry.path),
   ])
+  const latestRelease = syncResult ? readLatestArchiveRelease(syncResult.model) : {}
+  const changeStatus = syncResult ? buildChangeStatus(syncResult.model) : EMPTY_CHANGE_STATUS
 
   const skillCount = targetSources.reduce((sum, source) => sum + source.files.skills.length, 0)
   const agentCount = targetSources.reduce((sum, source) => sum + source.files.agents.length, 0)
   const commandCount = targetSources.reduce((sum, source) => sum + source.files.commands.length, 0)
 
   const yggVersion = projectYggVersion ?? entry.yggVersion ?? 'unknown'
-  const projectVersion = await readConfigProjectVersion(entry.path) ?? '0.0.0'
-  const changeStatus = await parseChangeStatus(changeIndexPath)
   const versionStatus = compareVersions(yggVersion, currentVersion)
 
   return {
@@ -150,35 +121,27 @@ async function getProjectInfo(entry: ProjectEntry, currentVersion: string): Prom
   }
 }
 
-async function parseChangeStatus(indexPath: string): Promise<{ total: number; inProgress: number; done: number }> {
+async function safeSyncChangeIndex(projectPath: string): Promise<SyncChangeIndexResult | null> {
   try {
-    const content = await readFile(indexPath, 'utf-8')
-    let inProgress = 0
-    let done = 0
-
-    let inArchive = false
-    for (const line of content.split('\n')) {
-      const trimmed = line.trim()
-
-      if (/^#+\s+Archive/i.test(trimmed)) {
-        inArchive = true
-        continue
-      }
-
-      if (!line.startsWith('|')) continue
-      if (/^\|[-\s|]+\|$/.test(line)) continue
-      if (/토픽/.test(line)) continue
-
-      const isTopicRow = /\[[^\]]+\]\(.+?\)/.test(line)
-      if (!isTopicRow) continue
-
-      if (inArchive) done++
-      else inProgress++
-    }
-
-    return { total: inProgress + done, inProgress, done }
+    return await syncChangeIndex(projectPath)
   } catch {
-    return { total: 0, inProgress: 0, done: 0 }
+    return null
+  }
+}
+
+async function safeListTargetFileSources(projectPath: string) {
+  try {
+    return await listTargetFileSources(projectPath)
+  } catch {
+    return []
+  }
+}
+
+async function safeReadProjectVersion(projectPath: string): Promise<string> {
+  try {
+    return await readConfigProjectVersion(projectPath) ?? '0.0.0'
+  } catch {
+    return '0.0.0'
   }
 }
 
@@ -244,7 +207,7 @@ export function projectsRoutes(app: FastifyInstance): void {
     }
 
     const info = await getProjectInfo(entry, currentVersion)
-    const targets = await listTargetFileSources(entry.path)
+    const targets = await safeListTargetFileSources(entry.path)
 
     return { info, targets }
   })

@@ -1,18 +1,26 @@
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { writeConfigTargets } from '../../../src/i18n/config.js'
+import { writeConfigLang, writeConfigTargets } from '../../../src/i18n/config.js'
 
-import { runInit } from '../../../src/commands/init.js'
+import {
+  listTemplateAgents,
+  listTemplateCommands,
+  listTemplateScripts,
+  listTemplateSkills,
+  runInit,
+} from '../../../src/commands/init.js'
 import { runUpdate } from '../../../src/commands/update.js'
 import * as registry from '../../../src/server/registry.js'
 
 let projectRoot: string
+const TEST_LANG = 'ko'
 
 beforeEach(async () => {
   projectRoot = await mkdtemp(join(tmpdir(), 'ygg-init-test-'))
+  await writeConfigLang(projectRoot, TEST_LANG)
   vi.spyOn(process.stdout, 'write').mockImplementation(() => true)
   vi.spyOn(process.stderr, 'write').mockImplementation(() => true)
   vi.spyOn(registry, 'addProject').mockResolvedValue({
@@ -31,16 +39,32 @@ afterEach(async () => {
 })
 
 describe('runInit', () => {
-  it('creates shared docs plus selected Claude and Codex targets', async () => {
+  it('creates shared docs plus every template-managed Claude and Codex asset', async () => {
     await runInit(projectRoot, { targets: ['claude', 'codex'] })
 
     const shared = await readFile(join(projectRoot, 'ygg', 'agent.md'), 'utf-8')
     const claude = await readFile(join(projectRoot, 'CLAUDE.md'), 'utf-8')
     const codex = await readFile(join(projectRoot, 'AGENTS.md'), 'utf-8')
+    const [expectedCommands, expectedSkills, expectedAgents, expectedScripts] = await Promise.all([
+      listTemplateCommands(TEST_LANG),
+      listTemplateSkills(TEST_LANG),
+      listTemplateAgents(TEST_LANG),
+      listTemplateScripts(),
+    ])
+    const [actualCommands, actualSkills, actualAgents, actualScripts] = await Promise.all([
+      listRelativeEntries(join(projectRoot, '.claude', 'commands', 'ygg')),
+      listRelativeEntries(join(projectRoot, '.claude', 'skills')),
+      listRelativeEntries(join(projectRoot, '.claude', 'agents')),
+      listRelativeEntries(join(projectRoot, '.claude', 'scripts')),
+    ])
 
     expect(shared).toContain('ygg/change/')
     expect(claude).toContain('ygg/agent.md')
     expect(codex).toContain('ygg/agent.md')
+    expect(actualCommands).toEqual(expectedCommands.map((entry) => `${entry}.md`))
+    expect(actualSkills).toEqual(expectedSkills)
+    expect(actualAgents).toEqual(expectedAgents)
+    expect(actualScripts).toEqual(expectedScripts)
   })
 
   it('creates only codex files when codex target is selected', async () => {
@@ -94,6 +118,34 @@ describe('runUpdate', () => {
     await expect(readFile(join(projectRoot, '.claude', 'settings.json'), 'utf-8')).rejects.toThrow()
   })
 
+  it('restores every missing template-managed Claude asset during update', async () => {
+    await runInit(projectRoot, { targets: ['claude', 'codex'] })
+    await rm(join(projectRoot, '.claude', 'commands', 'ygg', 'point.md'))
+    await rm(join(projectRoot, '.claude', 'agents', 'expert-security.md'))
+    await rm(join(projectRoot, '.claude', 'scripts', 'ygg-prove.sh'))
+    await rm(join(projectRoot, '.claude', 'skills', 'ygg-create'), { recursive: true, force: true })
+
+    await runUpdate(projectRoot)
+
+    const [expectedCommands, expectedSkills, expectedAgents, expectedScripts] = await Promise.all([
+      listTemplateCommands(TEST_LANG),
+      listTemplateSkills(TEST_LANG),
+      listTemplateAgents(TEST_LANG),
+      listTemplateScripts(),
+    ])
+    const [actualCommands, actualSkills, actualAgents, actualScripts] = await Promise.all([
+      listRelativeEntries(join(projectRoot, '.claude', 'commands', 'ygg')),
+      listRelativeEntries(join(projectRoot, '.claude', 'skills')),
+      listRelativeEntries(join(projectRoot, '.claude', 'agents')),
+      listRelativeEntries(join(projectRoot, '.claude', 'scripts')),
+    ])
+
+    expect(actualCommands).toEqual(expectedCommands.map((entry) => `${entry}.md`))
+    expect(actualSkills).toEqual(expectedSkills)
+    expect(actualAgents).toEqual(expectedAgents)
+    expect(actualScripts).toEqual(expectedScripts)
+  })
+
   it('removes claude outputs when claude is deselected in config', async () => {
     await runInit(projectRoot, { targets: ['claude', 'codex'] })
     await writeConfigTargets(projectRoot, ['codex'])
@@ -123,3 +175,7 @@ describe('runUpdate', () => {
     expect(settings).toContain('hooks')
   })
 })
+
+async function listRelativeEntries(dir: string): Promise<string[]> {
+  return (await readdir(dir)).sort()
+}

@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Grid from '@mui/material/Grid'
@@ -19,9 +19,17 @@ import UnarchiveIcon from '@mui/icons-material/Unarchive'
 import { api } from '../api/client'
 import { ARCHIVE_STATUS_LABEL, YGG_STAGES } from '../types'
 import type { ChangeEntry } from '../types'
+import {
+  buildChangesSnapshotView,
+  buildChangeSummary,
+  createChangesResetState,
+  createLatestRequestGuard,
+} from '../utils/projectViewState'
 
 interface ChangesProps {
   projectId: string
+  initialSubTab?: SubTab
+  onSummaryChange?: (summary: { inProgress: number; done: number; total: number }) => void
 }
 
 type SubTab = 'active' | 'archive'
@@ -48,14 +56,14 @@ function formatVersionLabel(version?: string): string {
   return raw.startsWith('v') ? raw : `v${raw}`
 }
 
-export default function Changes({ projectId }: ChangesProps) {
+export default function Changes({ projectId, initialSubTab = 'active', onSummaryChange }: ChangesProps) {
   const [topics, setTopics] = useState<ChangeEntry[]>([])
   const [archiveTopics, setArchiveTopics] = useState<ChangeEntry[]>([])
-  const [subTab, setSubTab] = useState<SubTab>('active')
+  const [subTab, setSubTab] = useState<SubTab>(initialSubTab)
   const [loading, setLoading] = useState(true)
   const [editingStage, setEditingStage] = useState<string | null>(null)
-  const location = useLocation()
   const navigate = useNavigate()
+  const loadGuardRef = useRef(createLatestRequestGuard())
 
   const tableSx = {
     border: 0,
@@ -73,35 +81,36 @@ export default function Changes({ projectId }: ChangesProps) {
   } as const
 
   const buildTopicState = (entry: ChangeEntry, nextSubTab: SubTab) => ({
-    from: {
-      pathname: location.pathname,
-      search: location.search,
-      hash: location.hash,
-    },
+    changeEntry: entry,
     projectDetailTab: 'changes' as const,
     changesSubTab: nextSubTab,
-    changeEntry: entry,
   })
 
   const load = useCallback(async () => {
+    const requestId = loadGuardRef.current.begin()
+
     try {
       setLoading(true)
       const data = await api.changes.list(projectId)
+      if (!loadGuardRef.current.isCurrent(requestId)) return
+
       setTopics(data.topics)
       setArchiveTopics(data.archiveTopics)
+      onSummaryChange?.(buildChangeSummary(data))
     } finally {
+      if (!loadGuardRef.current.isCurrent(requestId)) return
       setLoading(false)
     }
-  }, [projectId])
+  }, [onSummaryChange, projectId])
 
   useEffect(() => { void load() }, [load])
 
   useEffect(() => {
-    const state = location.state as { changesSubTab?: SubTab } | null
-    if (state?.changesSubTab) {
-      setSubTab(state.changesSubTab)
-    }
-  }, [location.state])
+    const reset = createChangesResetState(initialSubTab)
+    setLoading(true)
+    setSubTab(reset.subTab)
+    setEditingStage(reset.editingStage)
+  }, [initialSubTab, projectId])
 
   const handleStatusToggle = async (topic: string, currentStatus: string) => {
     const newStatus = currentStatus.includes('완료') ? '🔄 진행중' : '✅ 완료'
@@ -316,6 +325,19 @@ export default function Changes({ projectId }: ChangesProps) {
       ),
     },
     {
+      field: 'type',
+      headerName: '유형',
+      width: 110,
+      renderCell: (params: GridRenderCellParams) => (
+        <Chip
+          label={(params.value as string | undefined) ?? 'fix'}
+          size="small"
+          variant="outlined"
+          sx={{ fontFamily: 'monospace' }}
+        />
+      ),
+    },
+    {
       field: 'version',
       headerName: '버전',
       width: 190,
@@ -378,7 +400,9 @@ export default function Changes({ projectId }: ChangesProps) {
     )
   }
 
-  if (topics.length === 0 && archiveTopics.length === 0) {
+  const snapshot = buildChangesSnapshotView({ topics, archiveTopics })
+
+  if (snapshot.isCompletelyEmpty) {
     return (
       <Box sx={{ textAlign: 'center', mt: 4 }}>
         <Typography color="text.secondary">Change 내역이 없습니다.</Typography>
@@ -386,17 +410,14 @@ export default function Changes({ projectId }: ChangesProps) {
     )
   }
 
-  const activeRows = topics.map(t => ({ id: t.topic, ...t }))
-  const archiveRows = archiveTopics.map(t => ({ id: t.topic, ...t }))
-  const latestArchive = archiveTopics.find(t => t.latest === 'latest')
-  const latestArchiveVersion = formatVersionLabel(latestArchive?.version)
+  const latestArchiveVersion = snapshot.latestArchiveVersion ?? '-'
 
   return (
     <Stack spacing={2}>
       <Grid container spacing={2}>
         {[
-          ['Active topics', String(topics.length)],
-          ['Completed history', String(archiveTopics.length)],
+          ['Active topics', String(snapshot.activeCount)],
+          ['Completed history', String(snapshot.completedCount)],
           ['Latest release', latestArchiveVersion],
         ].map(([label, value]) => (
           <Grid key={label} size={{ xs: 12, md: 4 }}>
@@ -414,27 +435,27 @@ export default function Changes({ projectId }: ChangesProps) {
           onChange={(_, v: SubTab) => setSubTab(v)}
           sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
         >
-          <Tab label={`Active (${topics.length})`} value="active" />
-          <Tab label={`Completed (${archiveTopics.length})`} value="archive" />
+          <Tab label={`Active (${snapshot.activeCount})`} value="active" />
+          <Tab label={`Completed (${snapshot.completedCount})`} value="archive" />
         </Tabs>
 
         {subTab === 'active' && (
-          topics.length === 0
+          snapshot.activeEmpty
             ? <Typography color="text.secondary" sx={{ mt: 2 }}>진행 중인 change가 없습니다.</Typography>
             : (
               <DataGrid
-                rows={activeRows}
+                rows={snapshot.activeRows}
                 columns={activeColumns}
                 autoHeight
                 disableRowSelectionOnClick
-                hideFooter={activeRows.length <= 100}
+                hideFooter={snapshot.activeRows.length <= 100}
                 sx={tableSx}
               />
             )
         )}
 
         {subTab === 'archive' && (
-          archiveTopics.length === 0
+          snapshot.archiveEmpty
             ? <Typography color="text.secondary" sx={{ mt: 2 }}>Archive가 없습니다.</Typography>
             : (
               <Stack spacing={1.5}>
@@ -442,11 +463,11 @@ export default function Changes({ projectId }: ChangesProps) {
                   공용 archive 경로를 통해 완료 처리된 항목입니다. 현재 archive 메타데이터의 버전, latest, 날짜 값을 기준으로 archived 이력을 표시합니다.
                 </Typography>
                 <DataGrid
-                  rows={archiveRows}
+                  rows={snapshot.archiveRows}
                   columns={archiveColumns}
                   autoHeight
                   disableRowSelectionOnClick
-                  hideFooter={archiveRows.length <= 100}
+                  hideFooter={snapshot.archiveRows.length <= 100}
                   sx={tableSx}
                 />
               </Stack>

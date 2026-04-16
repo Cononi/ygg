@@ -1,22 +1,61 @@
-import { mkdir, rename, rm, stat } from 'node:fs/promises'
+import { mkdir, readFile, rename, rm, stat } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 
 import { readConfigProjectVersion, writeConfigProjectVersion } from '../i18n/config.js'
+import type { YggPointArchiveType } from '../types/ygg-point.js'
 
-import { readChangeIndex, syncChangeIndex, writeChangeIndex } from './change-index.js'
+import { findLatestTopicDate, readChangeIndex, syncChangeIndex, writeChangeIndex } from './change-index.js'
 
 export interface ArchiveTopicResult {
   projectVersion: string
   archiveDate: string
+  archiveType: string
 }
 
-function bumpPatchVersion(version: string | undefined): string {
-  const parsed = version?.split('.').map((part) => Number.parseInt(part, 10))
-  const valid = parsed && parsed.length === 3 && parsed.every((part) => Number.isFinite(part) && part >= 0)
-    ? parsed as [number, number, number]
-    : [0, 0, 0]
+type ArchiveType = YggPointArchiveType
+type SemverBumpLevel = 'major' | 'minor' | 'patch'
 
-  return `${valid[0]}.${valid[1]}.${valid[2] + 1}`
+const PATCH_ARCHIVE_TYPES = ['fix', 'docs', 'refactor', 'chore'] as const
+const ARCHIVE_TYPES = ['breaking', 'feat', ...PATCH_ARCHIVE_TYPES] as const satisfies readonly ArchiveType[]
+
+const ARCHIVE_BUMP_LEVEL: Record<ArchiveType, SemverBumpLevel> = {
+  breaking: 'major',
+  feat: 'minor',
+  fix: 'patch',
+  docs: 'patch',
+  refactor: 'patch',
+  chore: 'patch',
+}
+
+function parseProjectVersion(version: string | undefined): [number, number, number] {
+  const parsed = version?.split('.').map((part) => Number.parseInt(part, 10))
+  if (parsed && parsed.length === 3 && parsed.every((part) => Number.isFinite(part) && part >= 0)) {
+    return [parsed[0] ?? 0, parsed[1] ?? 0, parsed[2] ?? 0]
+  }
+
+  return [0, 0, 0]
+}
+
+function isArchiveType(value: unknown): value is ArchiveType {
+  return typeof value === 'string' && (ARCHIVE_TYPES as readonly string[]).includes(value)
+}
+
+function normalizeArchiveType(value: unknown): ArchiveType {
+  return isArchiveType(value) ? value : 'fix'
+}
+
+function bumpProjectVersion(version: string | undefined, archiveType: ArchiveType): string {
+  const [major, minor, patch] = parseProjectVersion(version)
+  const bumpLevel = ARCHIVE_BUMP_LEVEL[archiveType]
+
+  switch (bumpLevel) {
+    case 'major':
+      return `${major + 1}.0.0`
+    case 'minor':
+      return `${major}.${minor + 1}.0`
+    case 'patch':
+      return `${major}.${minor}.${patch + 1}`
+  }
 }
 
 function formatDate(date: Date = new Date()): string {
@@ -46,6 +85,17 @@ async function ensureDirectory(path: string, message: string): Promise<void> {
   }
 }
 
+async function readArchiveType(topicDir: string): Promise<ArchiveType> {
+  try {
+    const content = await readFile(join(topicDir, 'ygg-point.json'), 'utf-8')
+    const parsed = JSON.parse(content) as { archiveType?: unknown }
+    return normalizeArchiveType(parsed.archiveType)
+  } catch {
+    // default below
+  }
+  return 'fix'
+}
+
 export async function archiveTopic(projectRoot: string, topicPath: string): Promise<ArchiveTopicResult> {
   const changeDir = resolve(join(projectRoot, 'ygg', 'change'))
   const archiveRoot = resolve(join(changeDir, 'archive'))
@@ -61,11 +111,12 @@ export async function archiveTopic(projectRoot: string, topicPath: string): Prom
   const synced = await syncChangeIndex(projectRoot)
   const activeEntry = synced.model.topics.find(topic => topic.topic === topicPath)
   const description = activeEntry?.description ?? '-'
+  const archiveType = await readArchiveType(srcDir)
 
   await mkdir(resolve(join(destDir, '..')), { recursive: true })
   await rename(srcDir, destDir)
 
-  const nextProjectVersion = bumpPatchVersion(await readConfigProjectVersion(projectRoot))
+  const nextProjectVersion = bumpProjectVersion(await readConfigProjectVersion(projectRoot), archiveType)
   const archiveDate = formatDate()
 
   const model = await readChangeIndex(projectRoot)
@@ -74,6 +125,7 @@ export async function archiveTopic(projectRoot: string, topicPath: string): Prom
   model.archiveTopics.push({
     topic: topicPath,
     description,
+    type: archiveType,
     version: `v${nextProjectVersion}`,
     latest: 'latest',
     date: archiveDate,
@@ -85,6 +137,7 @@ export async function archiveTopic(projectRoot: string, topicPath: string): Prom
   return {
     projectVersion: nextProjectVersion,
     archiveDate,
+    archiveType,
   }
 }
 
@@ -107,13 +160,14 @@ export async function restoreTopic(projectRoot: string, topicPath: string): Prom
   const archiveEntry = model.archiveTopics.find(entry => entry.topic === topic)
   model.archiveTopics = model.archiveTopics.filter(entry => entry.topic !== topic)
   model.topics = model.topics.filter(entry => entry.topic !== topic)
+  const restoredDate = await findLatestTopicDate(destDir) ?? archiveEntry?.date ?? formatDate()
   model.topics.push({
     topic,
     status: '🔄 진행중',
     stage: 'add',
     yggPoint: '-',
     description: archiveEntry?.description ?? '-',
-    date: formatDate(),
+    date: restoredDate,
   })
 
   await writeChangeIndex(projectRoot, model)

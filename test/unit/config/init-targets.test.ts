@@ -6,11 +6,13 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { parse as parseYaml } from 'yaml'
 
 import {
+  readConfigYggPointAutoMode,
   readConfigProjectVersion,
   readConfigTargetNames,
   readConfigTargets,
   writeConfigProjectVersion,
   writeConfigTargets,
+  writeConfigYggPointAutoMode,
 } from '../../../src/i18n/config.js'
 
 let projectRoot: string
@@ -46,6 +48,19 @@ describe('config targets', () => {
     expect(raw['projectVersion']).toBe('0.0.3')
   })
 
+  it('writes and reads yggPoint.autoMode while preserving other fields', async () => {
+    await writeConfigTargets(projectRoot, ['claude', 'codex'])
+    await writeConfigProjectVersion(projectRoot, '0.0.3')
+    await writeConfigYggPointAutoMode(projectRoot, 'on')
+
+    await expect(readConfigYggPointAutoMode(projectRoot)).resolves.toBe('on')
+
+    const raw = parseYaml(await readFile(join(projectRoot, 'ygg', 'config.yml'), 'utf-8')) as Record<string, unknown>
+    expect(raw['targets']).toEqual(['claude', 'codex'])
+    expect(raw['projectVersion']).toBe('0.0.3')
+    expect(raw['yggPoint']).toEqual({ autoMode: 'on' })
+  })
+
   it('keeps raw target names for future runtimes while filtering supported targets', async () => {
     await mkdir(join(projectRoot, 'ygg'), { recursive: true })
     await writeFile(
@@ -56,5 +71,16 @@ describe('config targets', () => {
 
     await expect(readConfigTargetNames(projectRoot)).resolves.toEqual(['claude', 'codex', 'gemini'])
     await expect(readConfigTargets(projectRoot)).resolves.toEqual(['claude', 'codex'])
+  })
+
+  it('ignores unsupported yggPoint.autoMode values', async () => {
+    await mkdir(join(projectRoot, 'ygg'), { recursive: true })
+    await writeFile(
+      join(projectRoot, 'ygg', 'config.yml'),
+      ['yggPoint:', '  autoMode: auto', ''].join('\n'),
+      'utf-8',
+    )
+
+    await expect(readConfigYggPointAutoMode(projectRoot)).resolves.toBeUndefined()
   })
 })

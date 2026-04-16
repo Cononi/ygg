@@ -70,7 +70,7 @@ export const en = {
     },
     core: {
       description:
-        'Shared rules and formats for all /ygg:* commands. Defines the OpenSpec-like pipeline (create→next→add→qa), per-change directory structure under ygg/change/, document formats, and AskUserQuestion interaction rules. Auto-activates alongside any ygg skill.',
+        'Shared rules and formats for all /ygg:* commands. Defines the OpenSpec-like pipeline (create→next→add→qa), per-change directory structure under ygg/change/, document formats, AskUserQuestion interaction rules, and the shared foundation for multi-AI collaboration. Auto-activates alongside any ygg skill.',
     },
   },
 } as const satisfies Messages

@@ -36,7 +36,7 @@ function handleAdapterError(e: unknown): void {
 
 // ─── Interactive menu ──────────────────────────────────────────────────────
 
-/** ygg llm — 화살표 키 대화형 모델 선택/등록/Off 메뉴 */
+/** ygg llm — 다중 AI 작업에 사용할 로컬 보조 모델 선택/등록/Off 메뉴 */
 export async function runLlm(projectRoot: string): Promise<void> {
   if (!process.stdin.isTTY) {
     logger.error('ygg llm requires an interactive terminal (stdin is not a TTY)')
@@ -47,7 +47,7 @@ export async function runLlm(projectRoot: string): Promise<void> {
   const cfg = await readLlmConfig(projectRoot)
 
   const currentLabel = cfg.active ? `활성: ${cfg.active}` : 'Off'
-  logger.info(`LM Studio 설정  |  현재 상태: ${currentLabel}`)
+  logger.info(`다중 AI 보조 모델 설정  |  현재 상태: ${currentLabel}`)
   logger.info('↑↓ 이동, Enter 선택, Ctrl+C 취소\n')
 
   type MenuOption = { label: string; value: string }
@@ -57,8 +57,8 @@ export async function runLlm(projectRoot: string): Promise<void> {
     const prefix = model === cfg.active ? '[활성] ' : '       '
     options.push({ label: `${prefix}${model}`, value: `model:${model}` })
   }
-  options.push({ label: '       모델 추가 — 새 모델을 레지스트리에 등록', value: 'add' })
-  options.push({ label: '       Off — Claude API만 사용', value: 'off' })
+  options.push({ label: '       모델 추가 — 새 로컬 보조 모델을 레지스트리에 등록', value: 'add' })
+  options.push({ label: '       Off — 보조 모델 없이 기본 AI만 사용', value: 'off' })
 
   const selected = await arrowKeySelect(options)
   if (!selected) {
@@ -68,21 +68,21 @@ export async function runLlm(projectRoot: string): Promise<void> {
 
   if (selected === 'off') {
     await writeLlmConfig(projectRoot, { ...cfg, active: null })
-    logger.success('LM Studio 비활성화 — Claude API로 동작합니다')
+    logger.success('로컬 보조 모델 비활성화 — 기본 AI만 사용합니다')
     return
   }
 
   if (selected === 'add') {
-    const modelName = await promptInput('등록할 LM Studio 모델명을 입력하세요: ')
+    const modelName = await promptInput('등록할 로컬 보조 모델명을 입력하세요: ')
     if (!modelName) {
       logger.error('취소되었습니다.')
       return
     }
     const models = cfg.models.includes(modelName) ? cfg.models : [...cfg.models, modelName]
-    const activate = await confirmYN(`이 모델을 지금 활성화하시겠습니까? [Y/n] `)
+    const activate = await confirmYN(`이 보조 모델을 지금 활성화하시겠습니까? [Y/n] `)
     const active = activate ? modelName : cfg.active
     await writeLlmConfig(projectRoot, { ...cfg, models, active })
-    logger.success(`레지스트리에 추가되었습니다: ${modelName}`)
+      logger.success(`보조 모델 레지스트리에 추가되었습니다: ${modelName}`)
     if (activate) {
       await verifyAndReportHealth(cfg.baseUrl, modelName)
     }
@@ -100,7 +100,7 @@ export async function runLlm(projectRoot: string): Promise<void> {
       const force = await confirmYN('LM Studio 연결 실패. 그래도 설정을 저장할까요? [y/N] ')
       if (force) {
         await writeLlmConfig(projectRoot, { ...cfg, active: model })
-        logger.warn(`활성 모델로 설정했습니다 (연결 불가): ${model}`)
+      logger.warn(`활성 보조 모델로 설정했습니다 (연결 불가): ${model}`)
       }
     }
     return
@@ -108,14 +108,14 @@ export async function runLlm(projectRoot: string): Promise<void> {
 }
 
 async function verifyAndReportHealth(baseUrl: string, model: string): Promise<boolean> {
-  process.stdout.write(`LM Studio 연결 확인: ${baseUrl} ... `)
+  process.stdout.write(`로컬 LLM 연결 확인: ${baseUrl} ... `)
   const healthy = await checkLmStudioHealth(baseUrl)
   if (healthy) {
     process.stdout.write('✓\n')
   } else {
     process.stdout.write('✗\n')
-    logger.warn(`LM Studio 서버에 연결할 수 없습니다. 'lms server start'를 실행하세요.`)
-    logger.info(`  모델 로드: LM Studio 앱에서 ${model} 모델을 선택하고 서버를 시작하세요.`)
+    logger.warn(`로컬 LLM 서버에 연결할 수 없습니다. 'lms server start'를 실행하세요.`)
+    logger.info(`  보조 모델 로드: LM Studio 앱에서 ${model} 모델을 선택하고 서버를 시작하세요.`)
   }
   return healthy
 }
@@ -138,10 +138,10 @@ export async function runLlmStatus(projectRoot: string, opts: LlmStatusOptions =
   }
 
   const status = cfg.active ? `활성 (${cfg.active})` : 'Off'
-  logger.info(`LLM 상태: ${status}`)
+  logger.info(`보조 모델 상태: ${status}`)
   logger.info(`  baseUrl: ${cfg.baseUrl}`)
   logger.info(`  models:  ${cfg.models.length > 0 ? cfg.models.join(', ') : '(없음)'}`)
-  if (cfg.active) logger.info(`  LM Studio 연결: ${healthy ? '✓' : '✗'}`)
+  if (cfg.active) logger.info(`  로컬 LLM 연결: ${healthy ? '✓' : '✗'}`)
 }
 
 // ─── Code generation ──────────────────────────────────────────────────────
@@ -151,22 +151,26 @@ export interface LlmCodeOptions {
   task: string
 }
 
+export interface LlmScoreOptions {
+  dimensions: string
+  input: string
+}
+
+export interface LlmWriteOptions {
+  type: 'proposal' | 'design' | 'spec' | 'tasks'
+  input: string
+}
+
+export interface LlmSummarizeOptions {
+  input: string
+}
+
 /** ygg llm code --context <path> --task <description> */
 export async function runLlmCode(projectRoot: string, options: LlmCodeOptions): Promise<void> {
-  const cfg = await readLlmConfig(projectRoot)
-  if (!cfg.active) {
-    logger.error('LLM_DISABLED — `ygg llm`으로 모델을 먼저 활성화하세요')
-    process.exitCode = EXIT_LLM_DISABLED
-    return
-  }
-
-  if (!(await fileExists(options.context))) {
-    logger.error(`Context file not found: ${options.context}`)
-    process.exitCode = EXIT_CONTEXT_NOT_FOUND
-    return
-  }
-
-  const contextContent = await readFileContent(options.context)
+  const contextContent = await readRequiredInput(projectRoot, options.context, 'Context')
+  if (contextContent === null) return
+  const cfg = await readActiveConfig(projectRoot)
+  if (!cfg) return
 
   const prompt = buildCodePrompt(contextContent, options.task)
 
@@ -175,6 +179,65 @@ export async function runLlmCode(projectRoot: string, options: LlmCodeOptions): 
     const result = await provider.complete(prompt, { maxTokens: 4096, temperature: 0.2 })
     // eslint-disable-next-line no-console
     console.log(result)
+  } catch (e) {
+    handleAdapterError(e)
+  }
+}
+
+/** ygg llm score --dimensions <path> --input <path> */
+export async function runLlmScore(projectRoot: string, options: LlmScoreOptions): Promise<void> {
+  const dimensionsContent = await readRequiredInput(projectRoot, options.dimensions, 'Dimensions')
+  if (dimensionsContent === null) return
+  const inputContent = await readRequiredInput(projectRoot, options.input, 'Input')
+  if (inputContent === null) return
+  const cfg = await readActiveConfig(projectRoot)
+  if (!cfg) return
+
+  const prompt = buildScorePrompt(dimensionsContent, inputContent)
+
+  try {
+    const provider = makeProvider(cfg.baseUrl, cfg.active)
+    const result = await provider.complete(prompt, { maxTokens: 4096, temperature: 0.1 })
+    // eslint-disable-next-line no-console
+    console.log(result.trim())
+  } catch (e) {
+    handleAdapterError(e)
+  }
+}
+
+/** ygg llm write --type <proposal|design|spec|tasks> --input <path> */
+export async function runLlmWrite(projectRoot: string, options: LlmWriteOptions): Promise<void> {
+  const inputContent = await readRequiredInput(projectRoot, options.input, 'Input')
+  if (inputContent === null) return
+  const cfg = await readActiveConfig(projectRoot)
+  if (!cfg) return
+
+  const prompt = buildWritePrompt(options.type, inputContent)
+
+  try {
+    const provider = makeProvider(cfg.baseUrl, cfg.active)
+    const result = await provider.complete(prompt, { maxTokens: 4096, temperature: 0.2 })
+    // eslint-disable-next-line no-console
+    console.log(result.trim())
+  } catch (e) {
+    handleAdapterError(e)
+  }
+}
+
+/** ygg llm summarize --input <path> */
+export async function runLlmSummarize(projectRoot: string, options: LlmSummarizeOptions): Promise<void> {
+  const inputContent = await readRequiredInput(projectRoot, options.input, 'Input')
+  if (inputContent === null) return
+  const cfg = await readActiveConfig(projectRoot)
+  if (!cfg) return
+
+  const prompt = buildSummarizePrompt(inputContent)
+
+  try {
+    const provider = makeProvider(cfg.baseUrl, cfg.active)
+    const result = await provider.complete(prompt, { maxTokens: 2048, temperature: 0.1 })
+    // eslint-disable-next-line no-console
+    console.log(result.trim())
   } catch (e) {
     handleAdapterError(e)
   }
@@ -198,9 +261,105 @@ ${task}
 - Output code only, no explanation or markdown fences`
 }
 
+function buildScorePrompt(dimensions: string, input: string): string {
+  return `You score change proposal inputs for a workflow system.
+
+## Dimensions
+
+${dimensions}
+
+## Input
+
+${input}
+
+## Task
+
+- Evaluate the input against every dimension.
+- Return a single JSON object only.
+- Include:
+  - totalScore: number between 0 and 1
+  - dimensions: object keyed by dimension name
+  - each dimension value must include score, rationale, and missingInformation array
+- Be strict about unclear scope or boundaries.
+- No markdown fences, no prose outside JSON.`
+}
+
+function buildWritePrompt(type: LlmWriteOptions['type'], input: string): string {
+  return `You write ygg workflow documents.
+
+## Requested document type
+
+${type}
+
+## Input
+
+${input}
+
+## Task
+
+- Write the document in concise markdown.
+- Use only the information supported by the input.
+- Keep the structure practical and implementation-oriented.
+- Do not wrap the output in markdown fences.
+
+## Required structure by type
+
+- proposal: Why / What Changes / Capabilities / Impact / Boundary
+- design: Context / Goals / Non-Goals / Decisions / Constraints / Risks / Migration Plan / Open Questions
+- spec: Requirements / Constraints / Interface
+- tasks: numbered checklist with the last step reserved for verification`
+}
+
+function buildSummarizePrompt(input: string): string {
+  return `You summarize build, test, lint, and verification logs for an engineering workflow.
+
+## Input
+
+${input}
+
+## Task
+
+- Produce a concise markdown summary.
+- Separate pass/fail signals from notable warnings.
+- Call out the most actionable failures first.
+- Do not include markdown fences.`
+}
+
 async function readFileContent(filePath: string): Promise<string> {
   const { readFile } = await import('node:fs/promises')
   return readFile(filePath, 'utf-8')
+}
+
+async function readActiveConfig(projectRoot: string): Promise<{ active: string; baseUrl: string } | null> {
+  const cfg = await readLlmConfig(projectRoot)
+  if (!cfg.active) {
+    logger.error('LLM_DISABLED — `ygg llm`으로 모델을 먼저 활성화하세요')
+    process.exitCode = EXIT_LLM_DISABLED
+    return null
+  }
+
+  return { active: cfg.active, baseUrl: cfg.baseUrl }
+}
+
+async function readRequiredInput(
+  projectRoot: string,
+  path: string,
+  label: string,
+): Promise<string | null> {
+  const cfg = await readLlmConfig(projectRoot)
+  if (!cfg.active) {
+    logger.error('LLM_DISABLED — `ygg llm`으로 모델을 먼저 활성화하세요')
+    process.exitCode = EXIT_LLM_DISABLED
+    return null
+  }
+
+  if (!(await fileExists(path))) {
+    logger.error(`${label} file not found: ${path}`)
+    process.exitCode = EXIT_CONTEXT_NOT_FOUND
+    return null
+  }
+
+  return readFileContent(path)
 }
 
 // ─── Arrow key menu ───────────────────────────────────────────────────────

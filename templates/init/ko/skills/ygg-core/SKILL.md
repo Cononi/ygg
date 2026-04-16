@@ -43,7 +43,7 @@ ygg/change/
 │   ├── design.md            ← next
 │   ├── specs/{component}/spec.md ← next
 │   ├── tasks.md             ← next
-│   ├── ygg-point.json       ← 스코어링 이력
+│   ├── ygg-point.json       ← 점수 변화와 연결된 질답 포함 스코어링 이력
 │   └── YYYY-MM-DD.md        ← add (일별 변경 로그)
 └── archive/                 ← qa 통과 후 이동
 ```
@@ -59,7 +59,11 @@ ygg/change/
 - **reference/consistency**: 코드/문서로 자동 검증
 
 **루프**: 가장 낮은 차원에서 1~3개 질문 → 답변 반영 → 점수 재계산 → 반복.
-5라운드 후에도 미달 시 현재 점수로 진행 옵션 제시.
+`ygg-create`와 `ygg-next`에서는 auto-verifiable한 `reference` / `consistency` evaluator도 `ygg point auto-mode` 설정의 영향을 받아야 한다. `on`일 때만 먼저 내부 처리하고, `off`일 때는 사용자 확인 기반 질문 흐름으로 남긴다.
+`ygg point auto-mode=off`일 때는 `create`와 `next`가 각 차원마다 최소 5회의 사용자 답변 질문을 받은 뒤에만 스테이지를 마무리할 수 있다. 점수가 먼저 0.95를 넘더라도 이 최소 질답 수는 유지한다.
+그 최소 횟수를 채운 뒤에도 점수가 부족하면, 특정 차원의 점수를 더 끌어올릴지 현재 상태로 마무리할지 다시 선택하게 한다.
+저장되는 모든 답변은 차원, evaluator, answerSource, 점수 이전/이후 값과 함께 묶여서 Topic Detail이 점수 상승 이유를 설명할 수 있어야 한다. `questionTrail.round`는 각 차원 안에서 다시 `1`부터 시작하며, 그 차원의 점수가 질문에 따라 어떻게 단계적으로 올라갔는지 보여줘야 한다.
+스테이지 점수가 0.95 이상이 될 때까지 루프를 계속한다.
 
 ## Document Formats
 
@@ -79,6 +83,10 @@ ygg/change/
 `| 토픽 | 상태 | 단계 | 마지막 날짜 |` 테이블 + Archive 섹션.
 상태: 🔄 진행중 / ✅ 완료. 단계: create → next → add → qa.
 
+### ygg-point.json
+중복되는 top-level `history`는 만들지 않는다. 질문/답변 이력은 각 차원의 `questionTrail` 안에만 유지한다.
+스키마는 가볍게 유지한다. top-level 초기 요청 문장과 점수/상태 메타데이터, stage별 `initialScore`, `finalScore`, `delta`, 그리고 점수 변화를 설명하는 데 필요한 차원별 `questionTrail` 중심 정보만 저장하고, 중복되거나 소비되지 않는 필드는 제거한다.
+
 ## Active Topic Detection
 
 1. Read `ygg/change/INDEX.md`
@@ -93,9 +101,10 @@ ygg/change/
 4. Spec 제약 준수
 5. tasks.md 즉시 업데이트
 6. AskUserQuestion 필수 사용, 자동 선택 금지
-7. 추천 옵션에 `(Recommended)`, Cancel/Skip 항상 포함
-8. Deprecated API 사용 금지 — 최신 대체로 마이그레이션
-9. 모든 ygg/ 문서 200줄 미만 유지
+7. 모든 사용자 선택지는 번호가 있는 목록으로 제시하고, 터미널에서는 숫자 키와 방향키 선택을 모두 지원해야 한다
+8. 추천 옵션에 `(Recommended)`, Cancel/Skip 항상 포함
+9. Deprecated API 사용 금지 — 최신 대체로 마이그레이션
+10. 모든 ygg/ 문서 200줄 미만 유지
 
 ## Reading Rules
 

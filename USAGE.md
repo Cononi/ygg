@@ -68,7 +68,10 @@ ygg update
 
 ### `ygg archive <topic>`
 
-활성 change topic을 archive로 이동하고 project version을 증가시킨다.
+활성 change topic을 archive로 이동하고 `archiveType`에 따라 project version을 증가시킨다.
+- `breaking` → major 증가
+- `feat` → minor 증가
+- `fix`, `docs`, `refactor`, `chore` → patch 증가
 
 ```bash
 ygg archive my-topic

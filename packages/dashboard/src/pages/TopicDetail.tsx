@@ -1,6 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { Fragment, useState, useEffect, useCallback, useDeferredValue } from 'react'
 import { useLocation, useParams, useNavigate } from 'react-router-dom'
-import ReactMarkdown from 'react-markdown'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
@@ -22,16 +21,19 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen'
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile'
 import GpsFixedIcon from '@mui/icons-material/GpsFixed'
 import { api } from '../api/client'
+import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { ARCHIVE_STATUS_LABEL } from '../types'
 import type { ChangeEntry } from '../types'
 import type { FileNode } from '../types'
-
-interface YggPointJson {
-  score?: number
-  dimensions?: Record<string, { score?: number; note?: string }>
-  evaluatedAt?: string
-  phase?: string
-}
+import {
+  buildYggPointStageDimensionRows,
+  createYggPointRowId,
+  getLegacyYggPointDimensions,
+  getYggPointSummaryDimensions,
+  normalizeYggPointJson,
+  YGG_POINT_TABLE_HEADERS,
+} from './topicDetailYggPoint'
+import type { YggPointJson } from './topicDetailYggPoint'
 
 function getDaysSince(value?: string): string {
   if (!value || value === '-') return '-'
@@ -106,17 +108,205 @@ function FileTreeNode({
   )
 }
 
-function YggPointViewer({ json }: { json: YggPointJson }) {
-  const dims = json.dimensions ?? {}
+export function YggPointViewer({
+  json,
+  initialExpandedRows = [],
+}: {
+  json: YggPointJson
+  initialExpandedRows?: string[]
+}) {
+  const normalizedJson = normalizeYggPointJson(json)
+  const stages = normalizedJson.stages ?? {}
+  const stageEntries = Object.entries(stages)
+  const { stageName: summaryStageName, dimensions: summaryDimensions } = getYggPointSummaryDimensions(normalizedJson)
+  const dims = getLegacyYggPointDimensions(normalizedJson)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set(initialExpandedRows))
+
+  if (normalizedJson.schemaVersion === '2.0' && stageEntries.length > 0) {
+    return (
+      <Box sx={{ p: 2, display: 'grid', gap: 2 }}>
+        <Paper variant="outlined" sx={{ p: 2 }}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Typography variant="body1" fontWeight={700}>
+              종합 점수: {normalizedJson.score ?? '—'}
+            </Typography>
+            {normalizedJson.currentStage && <Chip label={normalizedJson.currentStage} size="small" variant="outlined" />}
+            {typeof normalizedJson.threshold === 'number' && <Chip label={`threshold ${normalizedJson.threshold.toFixed(2)}`} size="small" variant="outlined" />}
+            {typeof normalizedJson.ready === 'boolean' && <Chip label={normalizedJson.ready ? 'ready' : 'not ready'} size="small" color={normalizedJson.ready ? 'success' : 'warning'} />}
+          </Stack>
+          {normalizedJson.requestText && (
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, whiteSpace: 'pre-wrap' }}>
+              초기 요청: {normalizedJson.requestText}
+            </Typography>
+          )}
+        </Paper>
+
+        {summaryDimensions.length > 0 && (
+          <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
+            <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 1.5 }}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                차원 설명 요약
+              </Typography>
+              {summaryStageName && <Chip label={`${summaryStageName} 기준`} size="small" variant="outlined" />}
+            </Stack>
+            <Stack spacing={1.25}>
+              {summaryDimensions.map((dimension) => (
+                <Box key={`summary-${dimension.name}`}>
+                  <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                    {dimension.name}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {dimension.description}
+                  </Typography>
+                </Box>
+              ))}
+            </Stack>
+          </Paper>
+        )}
+
+        {stageEntries.map(([stageName, stage]) => {
+          const stageDimensionRows = buildYggPointStageDimensionRows(stageName, stage.dimensions, expandedRows)
+          return (
+            <Paper key={stageName} variant="outlined" sx={{ p: 2, display: 'grid', gap: 2 }}>
+              <Box>
+                <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }}>
+                  <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{stageName}</Typography>
+                  {typeof stage.finalScore === 'number' && <Chip label={`final ${stage.finalScore.toFixed(3)}`} size="small" color="primary" />}
+                  {typeof stage.initialScore === 'number' && <Chip label={`initial ${stage.initialScore.toFixed(3)}`} size="small" variant="outlined" />}
+                  {typeof stage.delta === 'number' && <Chip label={`delta ${stage.delta >= 0 ? '+' : ''}${stage.delta.toFixed(3)}`} size="small" variant="outlined" />}
+                </Stack>
+                {stage.improvementSummary && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    {stage.improvementSummary}
+                  </Typography>
+                )}
+              </Box>
+
+              <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse' }}>
+                <Box component="thead">
+                  <Box component="tr">
+                    {YGG_POINT_TABLE_HEADERS.map(h => (
+                      <Box component="th" key={h} sx={{ textAlign: 'left', p: 1, borderBottom: '1px solid', borderColor: 'divider', typography: 'caption', fontWeight: 700 }}>{h}</Box>
+                    ))}
+                  </Box>
+                </Box>
+                <Box component="tbody">
+                  {stageDimensionRows.map((row) => {
+                    const isExpandable = row.canExpand
+                    const rowId = createYggPointRowId(stageName, row.name)
+                    const isExpanded = expandedRows.has(rowId)
+
+                    return (
+                      <Fragment key={rowId}>
+                        <Box
+                          component="tr"
+                          onClick={isExpandable ? () => {
+                            setExpandedRows((previous) => {
+                              const next = new Set(previous)
+                              if (next.has(rowId)) next.delete(rowId)
+                              else next.add(rowId)
+                              return next
+                            })
+                          } : undefined}
+                          sx={isExpandable ? {
+                            cursor: 'pointer',
+                            '&:hover': { bgcolor: 'action.hover' },
+                          } : undefined}
+                        >
+                          <Box component="td" sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                            <Stack direction="row" spacing={1} useFlexGap alignItems="center">
+                              <Chip
+                                label={row.historyChipLabel}
+                                size="small"
+                                variant="outlined"
+                                color={isExpandable ? (isExpanded ? 'primary' : 'default') : 'default'}
+                              />
+                              <Typography component="span" sx={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>
+                                {row.name}
+                              </Typography>
+                            </Stack>
+                          </Box>
+                          <Box component="td" sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>{row.initialScoreLabel}</Box>
+                          <Box component="td" sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>{row.finalScoreLabel}</Box>
+                          <Box component="td" sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
+                            {row.scoreChangeLabel}
+                          </Box>
+                          <Box component="td" sx={{ p: 1, fontSize: '0.8rem', color: 'text.secondary', borderBottom: '1px solid', borderColor: 'divider' }}>{row.rationale}</Box>
+                        </Box>
+
+                        {isExpandable && isExpanded && (
+                          <Box
+                            component="tr"
+                            key={`${rowId}-details`}
+                          >
+                            <Box component="td" colSpan={5} sx={{ p: 0, borderBottom: '1px solid', borderColor: 'divider' }}>
+                              <Box sx={{ p: 1.5, bgcolor: 'action.hover', display: 'grid', gap: 1 }}>
+                                {row.trailCards.map((trailCard, index) => (
+                                  <Paper key={`${rowId}-trail-${index}`} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                                    <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 0.75 }}>
+                                      <Chip label={trailCard.roundLabel} size="small" />
+                                      <Chip label={trailCard.beforeAfterLabel} size="small" variant="outlined" />
+                                      <Chip label={trailCard.deltaLabel} size="small" color={trailCard.deltaLabel.startsWith('+') ? 'success' : 'default'} variant="outlined" />
+                                      {trailCard.answerSourceLabel && <Chip label={trailCard.answerSourceLabel} size="small" variant="outlined" />}
+                                      {trailCard.evaluatorType && <Chip label={trailCard.evaluatorType} size="small" variant="outlined" />}
+                                      {trailCard.finalQaChipLabel && <Chip label={trailCard.finalQaChipLabel} size="small" color="primary" />}
+                                    </Stack>
+                                    {row.noteLabel && (
+                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                        {row.noteLabel}
+                                      </Typography>
+                                    )}
+                                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 0.5 }}>
+                                      질문
+                                    </Typography>
+                                    <Typography variant="body2" sx={{
+                                      color: 'text.secondary',
+                                      mb: 1,
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      whiteSpace: 'nowrap',
+                                    }}>
+                                      {trailCard.question}
+                                    </Typography>
+                                    <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, mb: 0.5 }}>
+                                      답변
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                    }}>
+                                      {trailCard.answer}
+                                    </Typography>
+                                  </Paper>
+                                ))}
+                              </Box>
+                            </Box>
+                          </Box>
+                        )}
+                      </Fragment>
+                    )
+                  })}
+                </Box>
+              </Box>
+            </Paper>
+          )
+        })}
+      </Box>
+    )
+  }
+
   return (
     <Box sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <Typography variant="body1" fontWeight={700}>
-          종합 점수: {json.score ?? '—'}
+          <Typography variant="body1" fontWeight={700}>
+          종합 점수: {normalizedJson.score ?? '—'}
         </Typography>
-        {json.phase && <Chip label={json.phase} size="small" variant="outlined" />}
-        {json.evaluatedAt && (
-          <Typography variant="caption" color="text.secondary">{json.evaluatedAt}</Typography>
+        {normalizedJson.phase && <Chip label={normalizedJson.phase} size="small" variant="outlined" />}
+        {normalizedJson.evaluatedAt && (
+          <Typography variant="caption" color="text.secondary">{normalizedJson.evaluatedAt}</Typography>
         )}
       </Box>
       {Object.keys(dims).length > 0 && (
@@ -133,7 +323,7 @@ function YggPointViewer({ json }: { json: YggPointJson }) {
               <Box component="tr" key={key}>
                 <Box component="td" sx={{ p: 1, fontFamily: 'monospace', fontSize: '0.8rem', borderBottom: '1px solid', borderColor: 'divider' }}>{key}</Box>
                 <Box component="td" sx={{ p: 1, borderBottom: '1px solid', borderColor: 'divider' }}>{val.score ?? '—'}</Box>
-                <Box component="td" sx={{ p: 1, fontSize: '0.8rem', color: 'text.secondary', borderBottom: '1px solid', borderColor: 'divider' }}>{val.note ?? ''}</Box>
+                <Box component="td" sx={{ p: 1, fontSize: '0.8rem', color: 'text.secondary', borderBottom: '1px solid', borderColor: 'divider' }}>{val.notes ?? val.note ?? ''}</Box>
               </Box>
             ))}
           </Box>
@@ -160,6 +350,7 @@ function FileViewer({
   const [editContent, setEditContent] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const previewContent = useDeferredValue(editContent)
 
   const load = useCallback(async () => {
     try {
@@ -214,8 +405,10 @@ function FileViewer({
   if (content === null) return null
 
   if (editing) {
+    const isMarkdown = fileType === 'markdown'
+
     return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 1, gap: 1 }}>
         <Box sx={{ display: 'flex', gap: 1, mb: 1, alignItems: 'center' }}>
           <Button variant="contained" size="small" onClick={() => void handleSave()} disabled={saving}>
             {saving ? '저장 중...' : '저장'}
@@ -223,26 +416,67 @@ function FileViewer({
           <Button variant="outlined" size="small" onClick={handleCancel} disabled={saving}>취소</Button>
           {saveError && <Alert severity="error" sx={{ py: 0, flexGrow: 1 }}>{saveError}</Alert>}
         </Box>
-        <TextField
-          multiline
-          fullWidth
-          value={editContent}
-          onChange={e => setEditContent(e.target.value)}
-          inputProps={{ spellCheck: false, style: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
-          sx={{ flexGrow: 1 }}
-          minRows={20}
-        />
+        {isMarkdown ? (
+          <Box
+            sx={{
+              display: 'grid',
+              gap: 1,
+              gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) minmax(0, 1fr)' },
+              flexGrow: 1,
+              minHeight: 0,
+            }}
+          >
+            <Paper variant="outlined" sx={{ display: 'flex', flexDirection: 'column', minHeight: { xs: 320, md: '100%' } }}>
+              <Typography
+                variant="caption"
+                sx={{ display: 'block', px: 1.5, py: 1, bgcolor: 'action.hover', color: 'text.secondary', fontFamily: 'monospace' }}
+              >
+                markdown source
+              </Typography>
+              <TextField
+                multiline
+                fullWidth
+                value={editContent}
+                onChange={e => setEditContent(e.target.value)}
+                inputProps={{ spellCheck: false, style: { fontFamily: 'monospace', fontSize: '0.85rem', lineHeight: 1.7 } }}
+                sx={{
+                  flexGrow: 1,
+                  '& .MuiOutlinedInput-root': { alignItems: 'flex-start', border: 0, borderRadius: 0 },
+                  '& .MuiOutlinedInput-notchedOutline': { border: 0 },
+                  '& textarea': { minHeight: { xs: 280, md: 'calc(100vh - 380px)' } },
+                }}
+              />
+            </Paper>
+
+            <Paper variant="outlined" sx={{ overflow: 'auto', minHeight: { xs: 240, md: '100%' } }}>
+              <Typography
+                variant="caption"
+                sx={{ display: 'block', px: 1.5, py: 1, bgcolor: 'action.hover', color: 'text.secondary', fontFamily: 'monospace' }}
+              >
+                preview
+              </Typography>
+              <Divider />
+              <MarkdownRenderer content={previewContent} />
+            </Paper>
+          </Box>
+        ) : (
+          <TextField
+            multiline
+            fullWidth
+            value={editContent}
+            onChange={e => setEditContent(e.target.value)}
+            inputProps={{ spellCheck: false, style: { fontFamily: 'monospace', fontSize: '0.85rem' } }}
+            sx={{ flexGrow: 1 }}
+            minRows={20}
+          />
+        )}
       </Box>
     )
   }
 
   const renderContent = () => {
     if (fileType === 'markdown') {
-      return (
-        <Box sx={{ p: 2, '& pre': { overflowX: 'auto' }, '& code': { fontFamily: 'monospace' } }}>
-          <ReactMarkdown>{content}</ReactMarkdown>
-        </Box>
-      )
+      return <MarkdownRenderer content={content} />
     }
     if (fileType === 'json' && filePath.includes('ygg-point')) {
       try {
@@ -328,6 +562,10 @@ export default function TopicDetail() {
   }, [id, fullTopic])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    setSelectedFile(null)
+  }, [fullTopic, id])
 
   if (loading) {
     return (

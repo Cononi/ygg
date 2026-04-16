@@ -15,18 +15,18 @@ export const createStageDefinition: StageDefinition = {
       name: 'motivation',
       weight: 0.25,
       description: '왜 이 변경이 필요한지 — 동기와 배경의 명확성',
-      baseQuestion: '이 기능/변경이 필요한 이유와 배경을 설명해주세요. 어떤 문제를 해결하려는 건가요?',
+      baseQuestion: '이번 변경이 꼭 필요한 이유를 한 문장으로 정의해주세요. 지금 무엇이 막히고 있고, 바뀐 뒤 무엇이 달라져야 하나요?',
       evaluators: [
         {
           type: 'humanistic',
           description: '실제 사용자의 불편/필요가 반영되었는가',
-          question: '이 변경으로 최종 사용자가 겪는 구체적인 불편이나 필요는 무엇인가요?',
+          question: '사용자가 가장 답답함을 느끼는 순간은 언제인가요? 현재 불편 1개와 변경 후 기대 결과 1개를 구체적으로 설명해주세요.',
           autoVerifiable: false,
         },
         {
           type: 'domain',
           description: '해당 도메인에서 이 동기가 타당한가',
-          question: '이 문제가 해당 도메인(분야)에서 일반적으로 어떻게 다뤄지나요? 업계 표준이나 관례가 있나요?',
+          question: '이 문제를 보통 어떤 방식으로 해결하나요? 기존 방식 대비 이번 변경이 필요한 이유와 선택한 방향의 근거를 설명해주세요.',
           autoVerifiable: false,
         },
         {
@@ -49,18 +49,18 @@ export const createStageDefinition: StageDefinition = {
       name: 'scope',
       weight: 0.25,
       description: '변경 범위 — 무엇을 바꾸고 어디까지 영향을 미치는가',
-      baseQuestion: '이 변경의 구체적인 범위를 알려주세요. 어떤 모듈/파일/기능이 대상인가요?',
+      baseQuestion: '이번 토픽에 반드시 포함할 것과 이번에는 제외할 것을 나눠서 적어주세요. 대상 모듈, 명령, 문서를 함께 밝혀주세요.',
       evaluators: [
         {
           type: 'humanistic',
           description: '변경 범위가 사용자 경험에 미치는 영향을 고려했는가',
-          question: '이 변경이 사용자 경험(UI, 워크플로우, 성능)에 어떤 영향을 미치나요?',
+          question: '이 변경 후 사용자가 직접 체감해야 하는 변화는 무엇인가요? UI, 워크플로우, 응답성 중 바뀌는 지점을 구체적으로 적어주세요.',
           autoVerifiable: false,
         },
         {
           type: 'domain',
           description: '범위가 기술적으로 합리적인가 (너무 넓거나 좁지 않은가)',
-          question: '이 범위가 하나의 변경 단위로 적절한가요? 더 작게 나누거나 합쳐야 할 부분이 있나요?',
+          question: '이 범위가 하나의 변경 단위로 적절한가요? 이번 토픽에 넣을 것과 다음 토픽으로 미룰 것을 각각 알려주세요.',
           autoVerifiable: false,
         },
         {
@@ -83,24 +83,24 @@ export const createStageDefinition: StageDefinition = {
       name: 'user-story',
       weight: 0.2,
       description: '사용자 시나리오 — 누가 어떤 상황에서 어떻게 사용하는가',
-      baseQuestion: '이 기능의 주 사용자는 누구이고, 어떤 시나리오에서 사용하게 되나요?',
+      baseQuestion: '대표 사용자 1명과 엣지 사용자 1명을 정해주세요. 각 사용자가 어떤 입력으로 어떤 결과를 기대하는지 설명해주세요.',
       evaluators: [
         {
           type: 'humanistic',
           description: '다양한 사용자 유형(초보/숙련/엣지)을 고려했는가',
-          question: '처음 사용하는 사람과 숙련된 사용자 모두에게 적절한 경험을 제공하나요? 엣지 케이스 사용자는?',
+          question: '초보 사용자와 숙련 사용자에게 각각 어떤 경험을 제공해야 하나요? 특히 혼동되기 쉬운 지점이나 실패 시나리오도 적어주세요.',
           autoVerifiable: false,
         },
         {
           type: 'domain',
           description: '시나리오가 도메인 관점에서 현실적인가',
-          question: '이 시나리오가 실제 워크플로우에서 자연스럽게 발생하는 상황인가요?',
+          question: '이 시나리오가 실제 워크플로우에서 자주 발생하나요? 발생 맥락과 선행 조건, 완료 기준을 함께 설명해주세요.',
           autoVerifiable: false,
         },
         {
           type: 'reference',
           description: '유사 기능의 선행 사례가 있는가',
-          question: '비슷한 기능을 제공하는 다른 도구/시스템이 있나요? 참고할 수 있는 선행 사례는?',
+          question: '비슷한 기능을 제공하는 다른 도구나 선행 사례가 있나요? 있다면 어떤 점을 참고하거나 피해야 하나요?',
           autoVerifiable: false,
         },
         {
@@ -116,18 +116,18 @@ export const createStageDefinition: StageDefinition = {
       name: 'boundary',
       weight: 0.15,
       description: '경계 정의 — 하지 않을 것, 범위 밖',
-      baseQuestion: '이 변경에서 명시적으로 하지 않을 것(Non-Goals)은 무엇인가요?',
+      baseQuestion: '이번 변경에서 하지 않을 것을 명시해주세요. 사용자가 기대할 수 있지만 이번에는 제외하는 항목도 함께 적어주세요.',
       evaluators: [
         {
           type: 'humanistic',
           description: '경계가 사용자 기대와 충돌하지 않는가',
-          question: '사용자가 이 기능에서 당연히 기대할 수 있지만 제외된 것이 있나요? 그 이유는?',
+          question: '사용자가 자연스럽게 기대할 수 있지만 이번에는 제외되는 기능이 있나요? 제외 이유와 안내 방식까지 설명해주세요.',
           autoVerifiable: false,
         },
         {
           type: 'domain',
           description: '기술적으로 경계가 명확한가',
-          question: '구현 시 "여기까지만" 하는 기준이 기술적으로 명확한가요?',
+          question: '구현 중 범위가 커지지 않게 막아줄 기술적 기준은 무엇인가요? 완료 판단 기준과 중단 기준을 함께 적어주세요.',
           autoVerifiable: false,
         },
         {
@@ -150,18 +150,18 @@ export const createStageDefinition: StageDefinition = {
       name: 'impact',
       weight: 0.15,
       description: '영향 분석 — 어떤 파일/모듈/시스템에 영향을 미치는가',
-      baseQuestion: '이 변경으로 영향받는 파일, 모듈, 또는 시스템은 무엇인가요?',
+      baseQuestion: '직접 수정할 파일과 간접 영향을 받는 모듈을 구분해서 적어주세요. 문서, CLI, 대시보드 등 영향 지점도 빠뜨리지 마세요.',
       evaluators: [
         {
           type: 'humanistic',
           description: '영향받는 사용자 그룹을 파악했는가',
-          question: '이 변경이 기존 사용자의 워크플로우를 깨뜨리거나 변경하는 부분이 있나요?',
+          question: '이 변경으로 기존 사용자의 흐름이 깨지거나 바뀌는 지점이 있나요? 호환성 영향과 안내 필요 여부를 적어주세요.',
           autoVerifiable: false,
         },
         {
           type: 'domain',
           description: '기술적 영향 범위가 정확한가',
-          question: '간접적으로 영향받는 모듈(의존성 체인)까지 고려했나요?',
+          question: '직접 수정하지 않아도 함께 검토해야 하는 모듈이나 의존성 체인이 있나요? 테스트와 검증 포인트까지 설명해주세요.',
           autoVerifiable: false,
         },
         {

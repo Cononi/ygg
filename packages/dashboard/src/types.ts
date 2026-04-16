@@ -47,6 +47,7 @@ export interface ChangeEntry {
   stage: string
   yggPoint: string
   description: string
+  type?: string
   version?: string
   latest?: string
   date?: string

@@ -21,6 +21,7 @@ describe('archive metadata and latest tracking', () => {
 
     await mkdir(join(projectRoot, 'ygg', 'change', 'topic-one'), { recursive: true })
     await mkdir(join(projectRoot, 'ygg', 'change', 'topic-two'), { recursive: true })
+    await mkdir(join(projectRoot, 'ygg', 'change', 'topic-three'), { recursive: true })
 
     await writeFile(
       join(projectRoot, 'ygg', 'config.yml'),
@@ -37,8 +38,24 @@ describe('archive metadata and latest tracking', () => {
         '|---|---|---|---|---|---|',
         '| [topic-one](./topic-one/) | 🔄 진행중 | qa | 0.95 | first archived topic | 2026-04-14 |',
         '| [topic-two](./topic-two/) | 🔄 진행중 | qa | 0.96 | second archived topic | 2026-04-14 |',
+        '| [topic-three](./topic-three/) | 🔄 진행중 | qa | 0.97 | breaking archived topic | 2026-04-14 |',
         '',
       ].join('\n'),
+      'utf-8',
+    )
+    await writeFile(
+      join(projectRoot, 'ygg', 'change', 'topic-one', 'ygg-point.json'),
+      JSON.stringify({ archiveType: 'fix' }, null, 2),
+      'utf-8',
+    )
+    await writeFile(
+      join(projectRoot, 'ygg', 'change', 'topic-two', 'ygg-point.json'),
+      JSON.stringify({ archiveType: 'feat' }, null, 2),
+      'utf-8',
+    )
+    await writeFile(
+      join(projectRoot, 'ygg', 'change', 'topic-three', 'ygg-point.json'),
+      JSON.stringify({ archiveType: 'breaking' }, null, 2),
       'utf-8',
     )
   })
@@ -73,12 +90,13 @@ describe('archive metadata and latest tracking', () => {
     })
     expect(changesRes.statusCode).toBe(200)
     let payload = changesRes.json() as {
-      archiveTopics: Array<{ topic: string; version?: string; latest?: string; date?: string }>
+      archiveTopics: Array<{ topic: string; type?: string; version?: string; latest?: string; date?: string }>
     }
     expect(payload.archiveTopics).toEqual([
       {
         topic: 'topic-one',
         description: 'first archived topic',
+        type: 'fix',
         version: 'v0.0.1',
         latest: 'latest',
         date: '2026-04-14',
@@ -98,20 +116,22 @@ describe('archive metadata and latest tracking', () => {
       url: `/api/projects/${project.id}/changes`,
     })
     payload = changesRes.json() as {
-      archiveTopics: Array<{ topic: string; version?: string; latest?: string; date?: string }>
+      archiveTopics: Array<{ topic: string; type?: string; version?: string; latest?: string; date?: string }>
     }
 
     expect(payload.archiveTopics).toEqual([
       {
         topic: 'topic-two',
         description: 'second archived topic',
-        version: 'v0.0.2',
+        type: 'feat',
+        version: 'v0.1.0',
         latest: 'latest',
         date: '2026-04-14',
       },
       {
         topic: 'topic-one',
         description: 'first archived topic',
+        type: 'fix',
         version: 'v0.0.1',
         latest: '-',
         date: '2026-04-14',
@@ -119,10 +139,34 @@ describe('archive metadata and latest tracking', () => {
     ])
 
     const indexContent = await readFile(join(projectRoot, 'ygg', 'change', 'INDEX.md'), 'utf-8')
-    expect(indexContent).toContain('| 토픽 | 설명 | 버전 | 최신 | 날짜 |')
-    expect(indexContent).toContain('| [topic-one](./archive/topic-one/) | first archived topic | v0.0.1 | - | 2026-04-14 |')
-    expect(indexContent).toContain('| [topic-two](./archive/topic-two/) | second archived topic | v0.0.2 | latest | 2026-04-14 |')
-    expect(await readFile(join(projectRoot, 'ygg', 'config.yml'), 'utf-8')).toContain('projectVersion: 0.0.2')
+    expect(indexContent).toContain('| 토픽 | 설명 | 유형 | 버전 | 최신 | 날짜 |')
+    expect(indexContent).toContain('| [topic-one](./archive/topic-one/) | first archived topic | fix | v0.0.1 | - | 2026-04-14 |')
+    expect(indexContent).toContain('| [topic-two](./archive/topic-two/) | second archived topic | feat | v0.1.0 | latest | 2026-04-14 |')
+    expect(await readFile(join(projectRoot, 'ygg', 'config.yml'), 'utf-8')).toContain('projectVersion: 0.1.0')
+
+    const thirdArchive = await app.inject({
+      method: 'POST',
+      url: `/api/projects/${project.id}/changes/topic-three/archive`,
+    })
+    expect(thirdArchive.statusCode).toBe(200)
+
+    changesRes = await app.inject({
+      method: 'GET',
+      url: `/api/projects/${project.id}/changes`,
+    })
+    payload = changesRes.json() as {
+      archiveTopics: Array<{ topic: string; type?: string; version?: string; latest?: string; date?: string }>
+    }
+
+    expect(payload.archiveTopics[0]).toEqual({
+      topic: 'topic-three',
+      description: 'breaking archived topic',
+      type: 'breaking',
+      version: 'v1.0.0',
+      latest: 'latest',
+      date: '2026-04-14',
+    })
+    expect(await readFile(join(projectRoot, 'ygg', 'config.yml'), 'utf-8')).toContain('projectVersion: 1.0.0')
 
     await app.close()
   })
@@ -134,7 +178,7 @@ describe('archive metadata and latest tracking', () => {
 
     const indexContent = await readFile(join(projectRoot, 'ygg', 'change', 'INDEX.md'), 'utf-8')
     expect(indexContent).not.toContain('| [topic-one](./topic-one/) | 🔄 진행중 | qa | 0.95 | first archived topic |')
-    expect(indexContent).toContain('| [topic-one](./archive/topic-one/) | first archived topic | v0.0.1 | latest | 2026-04-14 |')
+    expect(indexContent).toContain('| [topic-one](./archive/topic-one/) | first archived topic | fix | v0.0.1 | latest | 2026-04-14 |')
 
     const configContent = await readFile(join(projectRoot, 'ygg', 'config.yml'), 'utf-8')
     expect(configContent).toContain('projectVersion: 0.0.1')
@@ -152,9 +196,9 @@ describe('archive metadata and latest tracking', () => {
         '| [topic-one](./topic-one/) | 🔄 진행중 | qa | 0.95 | first archived topic | 2026-04-14 |',
         '',
         '### Archive',
-        '| 토픽 | 설명 | 버전 | 최신 | 날짜 |',
-        '|---|---|---|---|---|',
-        '| [broken-topic](./archive/broken-topic/) | invalid archive | - | latest | 2026-04-14 |',
+        '| 토픽 | 설명 | 유형 | 버전 | 최신 | 날짜 |',
+        '|---|---|---|---|---|---|',
+        '| [broken-topic](./archive/broken-topic/) | invalid archive | fix | - | latest | 2026-04-14 |',
         '',
       ].join('\n'),
       'utf-8',
