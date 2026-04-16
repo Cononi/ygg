@@ -27,7 +27,7 @@ const DEFAULT_CONFIG: YggPointConfig = {
   threshold: 0.95,
   baseWeight: 0.3,
   qualityWeight: 0.7,
-  maxQuestionsPerRound: 3,
+  maxQuestionsPerRound: 1,
 }
 
 /** Scoring constants */
@@ -214,15 +214,14 @@ function buildStageTimeline(
   const questionTrails = Object.fromEntries(
     stageDef.dimensions.map((dimension) => [dimension.name, [] as YggPointDimensionQuestionTrailEntry[]]),
   ) as Record<string, YggPointDimensionQuestionTrailEntry[]>
-  const dimensionRoundCounts = Object.fromEntries(
-    stageDef.dimensions.map((dimension) => [dimension.name, 0]),
-  ) as Record<string, number>
 
   let final = initial
-  history.forEach((entry) => {
+  history.forEach((entry, index) => {
     const previous = final
     engine.addAnswer({
+      id: entry.questionId ?? `${entry.dimension}:${entry.evaluatorType}:${entry.question}`,
       dimension: entry.dimension,
+      dimensionDisplayName: stageDef.dimensions.find((dimension) => dimension.name === entry.dimension)?.displayName ?? entry.dimension,
       evaluatorType: entry.evaluatorType,
       question: entry.question,
       priority: 0,
@@ -233,11 +232,11 @@ function buildStageTimeline(
     const scoreAfter = getDimensionScore(final, entry.dimension)
     const trail = questionTrails[entry.dimension]
     if (trail) {
-      dimensionRoundCounts[entry.dimension] = (dimensionRoundCounts[entry.dimension] ?? 0) + 1
       trail.push({
-        round: dimensionRoundCounts[entry.dimension],
+        round: index + 1,
         answerSource: entry.answerSource,
         evaluatorType: entry.evaluatorType,
+        questionId: entry.questionId,
         question: entry.question,
         answer: entry.answer,
         scoreBefore,
@@ -271,6 +270,7 @@ function buildStageSnapshot(
     const questionTrail = questionTrails[dimension.name] ?? []
 
     return [dimension.name, {
+      displayName: dimension.displayName,
       description: dimension.description,
       initialScore: initialScore?.score ?? 0,
       finalScore: finalDimension.score,
@@ -327,6 +327,10 @@ export function createYggPointDocument(options: {
   }
 }
 
+function makeBaseQuestionKey(dimensionName: string): string {
+  return `${dimensionName}:base`
+}
+
 /** Q&A 이력에서 응답 완료된 평가기 키를 추출한다 */
 function buildAnsweredSet(history: QAEntry[], dimensions: Dimension[]): Set<string> {
   const answered = new Set<string>()
@@ -336,7 +340,7 @@ function buildAnsweredSet(history: QAEntry[], dimensions: Dimension[]): Set<stri
     if (!dim) continue
 
     if (entry.evaluatorType === 'base') {
-      // 기본 질문 응답 → 해당 차원의 baseFill 보정용 (별도 처리)
+      answered.add(makeBaseQuestionKey(dim.name))
       continue
     }
 
@@ -372,9 +376,11 @@ function selectNextQuestions(
     if (!dim) continue
 
     // baseFill이 매우 낮으면 기본 질문을 높은 우선순위로 추가
-    if (ds.baseFill < LOW_BASEFILL_THRESHOLD) {
+    if (ds.baseFill < LOW_BASEFILL_THRESHOLD && !answeredSet.has(makeBaseQuestionKey(dim.name))) {
       candidates.push({
+        id: makeBaseQuestionKey(dim.name),
         dimension: dim.name,
+        dimensionDisplayName: dim.displayName,
         evaluatorType: 'base',
         question: dim.baseQuestion,
         priority: ds.score * 100 + (1 - dim.weight) * 10,
@@ -392,7 +398,9 @@ function selectNextQuestions(
       const priority = ds.score * 100 + (1 - dim.weight) * 10 + autoBonus + evaluatorBonus
 
       candidates.push({
+        id: key,
         dimension: dim.name,
+        dimensionDisplayName: dim.displayName,
         evaluatorType: ev.type,
         question: ev.question,
         priority,
@@ -402,6 +410,14 @@ function selectNextQuestions(
 
   candidates.sort((a, b) => a.priority - b.priority)
   return candidates.slice(0, maxCount)
+}
+
+function getNextQuestion(
+  breakdown: DimensionScore[],
+  dimensions: Dimension[],
+  answeredSet: Set<string>,
+): YggPointQuestion | null {
+  return selectNextQuestions(breakdown, dimensions, answeredSet, 1)[0] ?? null
 }
 
 function findEvaluator(
@@ -509,6 +525,7 @@ export class YggPointEngine {
     this.history.push({
       dimension: question.dimension,
       evaluatorType: question.evaluatorType,
+      questionId: question.id,
       question: question.question,
       answer,
       timestamp: new Date().toISOString(),
@@ -539,6 +556,16 @@ export class YggPointEngine {
       this.dimensions,
       buildAnsweredSet(this.history, this.dimensions),
       limit,
+    )
+  }
+
+  /** 현재 상태에서 다음에 물어야 할 질문 하나를 반환한다 */
+  getNextQuestion(userInput: string): YggPointQuestion | null {
+    const result = this.evaluate(userInput)
+    return getNextQuestion(
+      result.breakdown,
+      this.dimensions,
+      buildAnsweredSet(this.history, this.dimensions),
     )
   }
 

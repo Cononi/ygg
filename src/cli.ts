@@ -1,5 +1,6 @@
 import { Command } from 'commander'
 
+import { runAdd } from './commands/add.js'
 import { runArchive } from './commands/archive.js'
 import { runCreate } from './commands/create.js'
 import { runDashboard, runDashboardAdd, runDashboardPort, runDashboardRemove } from './commands/dashboard.js'
@@ -7,6 +8,7 @@ import { runInit } from './commands/init.js'
 import { runLang } from './commands/lang.js'
 import { runLlm, runLlmCode, runLlmScore, runLlmStatus, runLlmSummarize, runLlmWrite } from './commands/llm.js'
 import { runNext } from './commands/next.js'
+import { runQa } from './commands/qa.js'
 import { runUpdate } from './commands/update.js'
 import { runValidate } from './commands/validate.js'
 import { isYggPointAutoModeEnabled } from './core/ygg-point.js'
@@ -16,9 +18,33 @@ import {
   type SupportedTarget,
   writeConfigYggPointAutoMode,
 } from './i18n/config.js'
+import { arrowKeySelect, promptInput } from './utils/interactive.js'
 import { logger, setLogLevel } from './utils/logger.js'
 
 const program = new Command()
+
+async function promptAutoModeSelection(): Promise<'on' | 'off' | null> {
+  const options = [
+    { value: 'on', label: '1. on (Recommended) — 자동 검증 가능한 항목은 create에서 내부 반영' },
+    { value: 'off', label: '2. off — create에서 모든 확인 포인트를 대화형 질문으로 진행' },
+  ] as const
+
+  if (process.stdin.isTTY && process.stdout.isTTY) {
+    logger.info('YGG Point auto-mode를 선택하세요 (↑↓ 이동, Enter 선택, q 취소):')
+    const selected = await arrowKeySelect(options.map((option) => ({ ...option })))
+    return selected === 'on' || selected === 'off' ? selected : null
+  }
+
+  const raw = await promptInput([
+    'YGG Point auto-mode를 선택하세요.',
+    ...options.map((option) => option.label),
+    '번호 또는 on/off 입력: ',
+  ].join('\n'))
+
+  if (raw === '1' || raw === 'on') return 'on'
+  if (raw === '2' || raw === 'off') return 'off'
+  return null
+}
 
 function parseTargetsOption(raw?: string): SupportedTarget[] | undefined {
   if (!raw) return undefined
@@ -65,6 +91,30 @@ program
   .action(async () => {
     try {
       await runNext(process.cwd())
+    } catch (e) {
+      logger.error(e instanceof Error ? e.message : String(e))
+      process.exitCode = 1
+    }
+  })
+
+program
+  .command('add')
+  .description('활성 next/add topic을 구현 단계로 올리고 daily log를 기록')
+  .action(async () => {
+    try {
+      await runAdd(process.cwd())
+    } catch (e) {
+      logger.error(e instanceof Error ? e.message : String(e))
+      process.exitCode = 1
+    }
+  })
+
+program
+  .command('qa')
+  .description('활성 add topic을 build/lint/typecheck/test로 검증하고 통과 시 archive')
+  .action(async () => {
+    try {
+      await runQa(process.cwd())
     } catch (e) {
       logger.error(e instanceof Error ? e.message : String(e))
       process.exitCode = 1
@@ -128,16 +178,26 @@ const pointCmd = program
 
 pointCmd
   .command('auto-mode [mode]')
-  .description('YGG Point auto-mode 설정/조회 (on이면 auto-verifiable 내부 반영, off이면 사용자 질문 유지)')
+  .description('YGG Point auto-mode 설정/조회 (create 단계에서만 적용, 인자 없으면 대화형 선택)')
   .action(async (mode?: string) => {
     try {
       if (!mode) {
         const currentMode = await readConfigYggPointAutoMode(process.cwd())
+        if (!currentMode) {
+          const selected = await promptAutoModeSelection()
+          if (!selected) {
+            throw new Error('auto-mode selection cancelled')
+          }
+          await writeConfigYggPointAutoMode(process.cwd(), selected)
+          logger.success(`YGG Point auto mode set to ${selected}`)
+          return
+        }
+
         const enabled = isYggPointAutoModeEnabled(currentMode)
         logger.info(`YGG Point auto mode: ${enabled ? 'on' : 'off'}`)
         logger.info(enabled
-          ? '자동 모드가 켜져 있어 auto-verifiable 항목을 내부 반영한 뒤 나머지 질문을 진행합니다.'
-          : '자동 모드가 꺼져 있어 auto-verifiable 항목도 사용자 확인 기반 질문 흐름으로 유지됩니다.')
+          ? 'create 단계에서 자동 검증 가능한 항목을 먼저 내부 반영합니다.'
+          : 'create 단계에서 모든 확인 포인트를 한 번에 하나씩 질문합니다.')
         return
       }
 

@@ -50,6 +50,7 @@ describe('createYggPointDocument', () => {
     expect(document.stages.create?.improvementSummary).toContain('2개 질문 응답')
     expect(document.history).toBeUndefined()
     expect(document.stages.create?.dimensions.motivation?.description).toBe('왜 이 변경이 필요한지 — 동기와 배경의 명확성')
+    expect(document.stages.create?.dimensions.motivation?.displayName).toBe('왜 필요한가')
     expect(document.stages.create?.dimensions.motivation?.rationale).toContain('기본 충실도')
     expect(document.stages.create?.dimensions.motivation?.questionTrail).toHaveLength(1)
     expect(document.stages.create?.dimensions.motivation?.questionTrail[0]).toMatchObject({
@@ -64,7 +65,7 @@ describe('createYggPointDocument', () => {
     )
     expect(document.stages.create?.dimensions.scope?.questionTrail).toHaveLength(1)
     expect(document.stages.create?.dimensions.scope?.questionTrail[0]).toMatchObject({
-      round: 1,
+      round: 2,
       question: '이 변경 후 사용자가 직접 체감해야 하는 변화는 무엇인가요? UI, 워크플로우, 응답성 중 바뀌는 지점을 구체적으로 적어주세요.',
       answer: '대시보드에서 프로젝트 간 ygg-point 비교가 쉬워집니다.',
       evaluatorType: 'humanistic',
@@ -75,7 +76,7 @@ describe('createYggPointDocument', () => {
     )
   })
 
-  it('preserves question trails beyond five answered rounds', () => {
+  it('preserves globally increasing question trail rounds across dimensions', () => {
     const history: QAEntry[] = [
       {
         dimension: 'motivation',
@@ -142,8 +143,8 @@ describe('createYggPointDocument', () => {
     expect(document.stages.create?.questionsAnswered).toBe(6)
     expect(document.stages.create?.rounds).toBe(7)
     expect(document.stages.create?.dimensions.motivation?.questionTrail[1]?.round).toBe(2)
-    expect(document.stages.create?.dimensions.scope?.questionTrail[0]?.round).toBe(1)
-    expect(document.stages.create?.dimensions.impact?.questionTrail[0]?.round).toBe(1)
+    expect(document.stages.create?.dimensions.scope?.questionTrail[0]?.round).toBe(3)
+    expect(document.stages.create?.dimensions.impact?.questionTrail[0]?.round).toBe(6)
   })
 
   it('merges a next snapshot into an existing document while preserving request text', () => {

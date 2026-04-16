@@ -10,12 +10,17 @@ import type { StageDefinition } from '../../types/ygg-point.js'
  */
 export const createStageDefinition: StageDefinition = {
   stage: 'create',
+  config: {
+    maxQuestionsPerRound: 1,
+  },
   dimensions: [
     {
       name: 'motivation',
+      displayName: '왜 필요한가',
       weight: 0.25,
       description: '왜 이 변경이 필요한지 — 동기와 배경의 명확성',
       baseQuestion: '이번 변경이 꼭 필요한 이유를 한 문장으로 정의해주세요. 지금 무엇이 막히고 있고, 바뀐 뒤 무엇이 달라져야 하나요?',
+      completionHint: '문제와 기대 결과가 선명해야 proposal의 Why가 정확해집니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -47,9 +52,11 @@ export const createStageDefinition: StageDefinition = {
     },
     {
       name: 'scope',
+      displayName: '무엇을 바꾸나',
       weight: 0.25,
       description: '변경 범위 — 무엇을 바꾸고 어디까지 영향을 미치는가',
       baseQuestion: '이번 토픽에 반드시 포함할 것과 이번에는 제외할 것을 나눠서 적어주세요. 대상 모듈, 명령, 문서를 함께 밝혀주세요.',
+      completionHint: '포함/제외 경계가 명확해야 proposal과 tasks가 흔들리지 않습니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -81,9 +88,11 @@ export const createStageDefinition: StageDefinition = {
     },
     {
       name: 'user-story',
+      displayName: '누가 어떻게 쓰나',
       weight: 0.2,
       description: '사용자 시나리오 — 누가 어떤 상황에서 어떻게 사용하는가',
       baseQuestion: '대표 사용자 1명과 엣지 사용자 1명을 정해주세요. 각 사용자가 어떤 입력으로 어떤 결과를 기대하는지 설명해주세요.',
+      completionHint: '대표 사용 흐름이 선명해야 proposal의 Capabilities와 design의 Context가 좋아집니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -114,9 +123,11 @@ export const createStageDefinition: StageDefinition = {
     },
     {
       name: 'boundary',
+      displayName: '이번에 하지 않을 것',
       weight: 0.15,
       description: '경계 정의 — 하지 않을 것, 범위 밖',
       baseQuestion: '이번 변경에서 하지 않을 것을 명시해주세요. 사용자가 기대할 수 있지만 이번에는 제외하는 항목도 함께 적어주세요.',
+      completionHint: '비목표가 분명해야 scope creep를 막고 tasks가 안정됩니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -148,9 +159,11 @@ export const createStageDefinition: StageDefinition = {
     },
     {
       name: 'impact',
+      displayName: '영향 받는 곳',
       weight: 0.15,
       description: '영향 분석 — 어떤 파일/모듈/시스템에 영향을 미치는가',
       baseQuestion: '직접 수정할 파일과 간접 영향을 받는 모듈을 구분해서 적어주세요. 문서, CLI, 대시보드 등 영향 지점도 빠뜨리지 마세요.',
+      completionHint: '영향 파일과 검증 포인트가 보여야 design/spec/tasks로 자연스럽게 이어집니다.',
       evaluators: [
         {
           type: 'humanistic',

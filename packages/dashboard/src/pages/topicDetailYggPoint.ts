@@ -61,6 +61,7 @@ export interface YggPointJson {
     questionsAnswered?: number
     improvementSummary?: string
     dimensions?: Record<string, {
+      displayName?: string
       description?: string
       initialScore?: number
       finalScore?: number
@@ -86,7 +87,33 @@ export interface YggPointJson {
 
 export interface YggPointSummaryDimension {
   readonly name: string
+  readonly displayName: string
   readonly description: string
+}
+
+export interface YggPointHeadlineSummary {
+  readonly stageName: string | null
+  readonly stageLabel: string
+  readonly scoreLabel: string
+  readonly thresholdLabel: string
+  readonly readyLabel: string
+  readonly headline: string
+  readonly supportingText: string
+}
+
+export interface YggPointHighlightCard {
+  readonly id: string
+  readonly title: string
+  readonly statusLabel: string
+  readonly scoreLabel: string
+  readonly deltaLabel: string
+  readonly trailCountLabel: string
+  readonly summary: string
+}
+
+export interface YggPointPrimaryContext {
+  readonly requestText: string | null
+  readonly finalAnswer: string | null
 }
 
 export interface YggPointTrailCard {
@@ -159,11 +186,155 @@ export function getYggPointSummaryDimensions(json: YggPointJson): {
   const dimensions = stageName
     ? Object.entries(stages[stageName]?.dimensions ?? {}).map(([name, detail]) => ({
       name,
+      displayName: detail.displayName ?? name,
       description: detail.description ?? '설명이 없습니다.',
     }))
     : []
 
   return { stageName, dimensions }
+}
+
+function getCurrentStageEntry(json: YggPointJson): {
+  stageName: string | null
+  stage: NonNullable<YggPointJson['stages']>[string] | null
+} {
+  const stages = json.stages ?? {}
+  const stageEntries = Object.entries(stages)
+  const stageName = json.currentStage && stages[json.currentStage]
+    ? json.currentStage
+    : stageEntries[0]?.[0] ?? null
+
+  return {
+    stageName,
+    stage: stageName ? stages[stageName] ?? null : null,
+  }
+}
+
+function truncateText(value: string | undefined, maxLength: number): string {
+  const text = value?.trim() ?? ''
+  if (!text) return ''
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
+}
+
+function getRequestText(json: YggPointJson): string | null {
+  const value = json.requestText ?? json.request
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function getLatestTrailAnswer(
+  dimensions: NonNullable<YggPointJson['stages']>[string]['dimensions'] | undefined,
+): string | null {
+  const latestEntry = Object.values(dimensions ?? {})
+    .flatMap(detail => detail.questionTrail ?? [])
+    .filter(entry => typeof entry.answer === 'string' && entry.answer.trim())
+    .sort((left, right) => {
+      const roundDiff = (right.round ?? -1) - (left.round ?? -1)
+      if (roundDiff !== 0) return roundDiff
+      return (right.scoreAfter ?? Number.NEGATIVE_INFINITY) - (left.scoreAfter ?? Number.NEGATIVE_INFINITY)
+    })[0]
+
+  return latestEntry?.answer?.trim() ?? null
+}
+
+function getLegacyLatestTrailAnswer(json: YggPointJson): string | null {
+  const createTrail = Object.values(toLegacyQuestionTrail(json.questionTrail)).flat()
+  const nextTrail = Object.values(toLegacyQuestionTrail(json.next)).flat()
+  const latestEntry = [...createTrail, ...nextTrail]
+    .filter(entry => typeof entry.answer === 'string' && entry.answer.trim())
+    .sort((left, right) => {
+      const roundDiff = (right.round ?? -1) - (left.round ?? -1)
+      if (roundDiff !== 0) return roundDiff
+      return (right.scoreAfter ?? Number.NEGATIVE_INFINITY) - (left.scoreAfter ?? Number.NEGATIVE_INFINITY)
+    })[0]
+
+  return latestEntry?.answer?.trim() ?? null
+}
+
+export function buildYggPointPrimaryContext(json: YggPointJson): YggPointPrimaryContext {
+  const normalized = normalizeYggPointJson(json)
+  const { stage } = getCurrentStageEntry(normalized)
+
+  return {
+    requestText: getRequestText(normalized),
+    finalAnswer: getLatestTrailAnswer(stage?.dimensions) ?? getLegacyLatestTrailAnswer(json),
+  }
+}
+
+export function buildYggPointHeadlineSummary(json: YggPointJson): YggPointHeadlineSummary {
+  const { stageName, stage } = getCurrentStageEntry(json)
+  const scoreValue = typeof json.score === 'number'
+    ? json.score
+    : stage?.finalScore
+  const thresholdValue = typeof json.threshold === 'number'
+    ? json.threshold
+    : DEFAULT_THRESHOLD
+  const ready = typeof json.ready === 'boolean'
+    ? json.ready
+    : Boolean(stage?.ready)
+  const dimensions = Object.values(stage?.dimensions ?? {})
+  const belowThresholdCount = dimensions.filter((detail) => {
+    if (typeof detail.finalScore !== 'number') return false
+    return detail.finalScore < thresholdValue
+  }).length
+  const weakestDimension = [...dimensions]
+    .filter((detail) => typeof detail.finalScore === 'number')
+    .sort((left, right) => (left.finalScore ?? 0) - (right.finalScore ?? 0))[0]
+
+  return {
+    stageName,
+    stageLabel: stageName ? `${stageName} 기준` : 'stage 없음',
+    scoreLabel: formatScoreValue(scoreValue),
+    thresholdLabel: formatScoreValue(thresholdValue),
+    readyLabel: ready ? 'ready' : 'not ready',
+    headline: ready
+      ? '현재 결과는 기준을 충족합니다.'
+      : '현재 결과는 아직 기준에 미달합니다.',
+    supportingText: ready
+      ? `${dimensions.length}개 차원 근거를 확인할 수 있으며, 세부 질문/답변 이력은 아래 드릴다운에서 계속 볼 수 있습니다.`
+      : belowThresholdCount > 0
+        ? `${belowThresholdCount}개 차원이 threshold ${formatScoreValue(thresholdValue)} 아래에 있습니다. 가장 약한 차원은 ${weakestDimension?.displayName ?? '알 수 없음'}입니다.`
+        : '세부 근거를 확인해 보완이 필요한 차원을 판단하세요.',
+  }
+}
+
+export function buildYggPointHighlightCards(
+  json: YggPointJson,
+  maxCards = 3,
+): YggPointHighlightCard[] {
+  const { stageName, stage } = getCurrentStageEntry(json)
+  const thresholdValue = typeof json.threshold === 'number'
+    ? json.threshold
+    : DEFAULT_THRESHOLD
+
+  const cards = Object.entries(stage?.dimensions ?? {}).map(([name, detail]) => {
+    const finalScore = detail.finalScore
+    const delta = detail.delta
+    const trailCount = detail.questionTrail?.length ?? 0
+    const summary = truncateText(detail.notes || detail.rationale || detail.description, 180)
+    const underThreshold = typeof finalScore === 'number' && finalScore < thresholdValue
+
+    return {
+      id: createYggPointRowId(stageName ?? 'stage', name),
+      title: detail.displayName ?? name,
+      statusLabel: underThreshold ? '미달 이유' : '통과 근거',
+      scoreLabel: `최종 ${formatScoreValue(finalScore)}`,
+      deltaLabel: `상승 ${formatScoreDelta(delta)}`,
+      trailCountLabel: `질답 ${trailCount}개`,
+      summary,
+      priority: underThreshold ? 0 : 1,
+      finalScore: finalScore ?? -1,
+      deltaScore: delta ?? Number.NEGATIVE_INFINITY,
+    }
+  })
+
+  return cards
+    .sort((left, right) => {
+      if (left.priority !== right.priority) return left.priority - right.priority
+      if (left.priority === 0) return left.finalScore - right.finalScore
+      return right.deltaScore - left.deltaScore
+    })
+    .slice(0, maxCards)
+    .map(({ priority: _priority, finalScore: _finalScore, deltaScore: _deltaScore, ...card }) => card)
 }
 
 export function getLegacyYggPointDimensions(
@@ -253,6 +424,7 @@ function normalizeLegacyStage(
         : finalScore
 
       return [dimensionName, {
+        displayName: descriptions[dimensionName] ?? dimensionName,
         description: descriptions[dimensionName] ?? dimensionName,
         initialScore: inferredInitial,
         finalScore: inferredFinal,
@@ -345,7 +517,7 @@ export function buildYggPointStageDimensionRows(
 
     return {
       rowId,
-      name,
+      name: detail.displayName ?? name,
       initialScoreLabel: formatScoreValue(detail.initialScore),
       finalScoreLabel: formatScoreValue(detail.finalScore),
       scoreChangeLabel:

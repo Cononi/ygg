@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { runNext } from '../../../src/commands/next.js'
-import { writeConfigYggPointAutoMode } from '../../../src/i18n/config.js'
 
 let projectRoot: string
 
@@ -66,7 +65,28 @@ beforeEach(async () => {
           rounds: 2,
           questionsAnswered: 1,
           improvementSummary: 'create done',
-          dimensions: {},
+          dimensions: {
+            motivation: {
+              displayName: '왜 필요한가',
+              description: '왜 필요한가',
+              initialScore: 0.8,
+              finalScore: 0.95,
+              delta: 0.15,
+              rationale: '질문 보강',
+              notes: 'notes',
+              questionTrail: [
+                {
+                  round: 1,
+                  evaluatorType: 'base',
+                  question: '왜 필요한가?',
+                  answer: '처음 작성자가 남긴 질문',
+                  scoreBefore: 0.8,
+                  scoreAfter: 0.95,
+                  delta: 0.15,
+                },
+              ],
+            },
+          },
         },
       },
     }, null, 2),
@@ -80,18 +100,10 @@ afterEach(async () => {
 })
 
 describe('runNext', () => {
-  it('creates next documents and merges next-stage ygg-point snapshot', async () => {
-    await writeConfigYggPointAutoMode(projectRoot, 'on')
-
-    let answerCount = 0
-
+  it('creates next documents and merges next-stage ygg-point snapshot without asking new questions', async () => {
     await runNext(projectRoot, {
-      askQuestion: async (question) => {
-        answerCount += 1
-        return `next-answer-${answerCount}: ${question}`
-      },
-      selectOption: async (_prompt, options) => options[0]?.value ?? null,
       now: () => new Date('2026-04-16T00:00:00.000Z'),
+      selectOption: async (_prompt, options) => options.find((option) => option.value === 'stop')?.value ?? null,
     })
 
     const design = await readFile(join(projectRoot, 'ygg', 'change', 'sample-topic', 'design.md'), 'utf-8')
@@ -103,7 +115,8 @@ describe('runNext', () => {
       stages?: {
         create?: object
         next?: {
-          dimensions?: Record<string, { questionTrail?: Array<{ round?: number; answerSource?: string }> }>
+          questionsAnswered?: number
+          dimensions?: Record<string, { questionTrail?: Array<unknown> }>
         }
       }
     }
@@ -116,67 +129,20 @@ describe('runNext', () => {
     expect(yggPoint.currentStage).toBe('next')
     expect(yggPoint.stages?.create).toBeDefined()
     expect(yggPoint.stages?.next).toBeDefined()
-
-    const trails = Object.values(yggPoint.stages?.next?.dimensions ?? {})
-      .flatMap((dimension) => dimension.questionTrail ?? [])
-    expect(trails.some((entry) => entry.answerSource === 'auto')).toBe(true)
-    expect(trails.every((entry) => typeof entry.round === 'number' && entry.round >= 1)).toBe(true)
+    expect(yggPoint.stages?.next?.questionsAnswered).toBe(0)
+    expect(Object.values(yggPoint.stages?.next?.dimensions ?? {}).every((dimension) => (dimension.questionTrail ?? []).length === 0)).toBe(true)
     expect(index).toContain('| [sample-topic](./sample-topic/) | 🔄 진행중 | next |')
   })
 
-  it('does not auto-answer next-stage questions when auto mode is off', async () => {
-    await writeConfigYggPointAutoMode(projectRoot, 'off')
+  it('can auto-chain into ygg-add when requested', async () => {
+    const runAddSpy = vi.fn(async () => {})
 
-    let answerCount = 0
     await runNext(projectRoot, {
-      askQuestion: async (question) => {
-        answerCount += 1
-        return `next-answer-${answerCount}: ${question}`
-      },
-      selectOption: async (_prompt, options) => options[0]?.value ?? null,
       now: () => new Date('2026-04-16T00:00:00.000Z'),
+      selectOption: async (_prompt, options) => options.find((option) => option.value === 'add')?.value ?? null,
+      runAdd: runAddSpy,
     })
 
-    const yggPoint = JSON.parse(await readFile(join(projectRoot, 'ygg', 'change', 'sample-topic', 'ygg-point.json'), 'utf-8')) as {
-      stages?: {
-        next?: {
-          dimensions?: Record<string, { questionTrail?: Array<{ answerSource?: string }> }>
-        }
-      }
-    }
-
-    const trails = Object.values(yggPoint.stages?.next?.dimensions ?? {})
-      .flatMap((dimension) => dimension.questionTrail ?? [])
-
-    expect(trails.some((entry) => entry.answerSource === 'auto')).toBe(false)
-  })
-
-  it('requires at least five user-answered questions per dimension when auto mode is off', async () => {
-    await writeConfigYggPointAutoMode(projectRoot, 'off')
-
-    let answerCount = 0
-    await runNext(projectRoot, {
-      askQuestion: async (question) => {
-        answerCount += 1
-        return `next-manual-answer-${answerCount}: ${question}`
-      },
-      selectOption: async (_prompt, options) => options[0]?.value ?? null,
-      now: () => new Date('2026-04-16T00:00:00.000Z'),
-    })
-
-    const yggPoint = JSON.parse(await readFile(join(projectRoot, 'ygg', 'change', 'sample-topic', 'ygg-point.json'), 'utf-8')) as {
-      stages?: {
-        next?: {
-          dimensions?: Record<string, { questionTrail?: Array<{ answerSource?: string }> }>
-        }
-      }
-    }
-
-    const dimensions = yggPoint.stages?.next?.dimensions ?? {}
-    expect(Object.keys(dimensions)).toHaveLength(5)
-    for (const dimension of Object.values(dimensions)) {
-      const manualTrail = (dimension.questionTrail ?? []).filter((entry) => entry.answerSource !== 'auto')
-      expect(manualTrail.length).toBeGreaterThanOrEqual(5)
-    }
+    expect(runAddSpy).toHaveBeenCalledOnce()
   })
 })

@@ -26,10 +26,11 @@ import { ARCHIVE_STATUS_LABEL } from '../types'
 import type { ChangeEntry } from '../types'
 import type { FileNode } from '../types'
 import {
+  buildYggPointHeadlineSummary,
+  buildYggPointHighlightCards,
+  buildYggPointPrimaryContext,
   buildYggPointStageDimensionRows,
-  createYggPointRowId,
   getLegacyYggPointDimensions,
-  getYggPointSummaryDimensions,
   normalizeYggPointJson,
   YGG_POINT_TABLE_HEADERS,
 } from './topicDetailYggPoint'
@@ -118,49 +119,129 @@ export function YggPointViewer({
   const normalizedJson = normalizeYggPointJson(json)
   const stages = normalizedJson.stages ?? {}
   const stageEntries = Object.entries(stages)
-  const { stageName: summaryStageName, dimensions: summaryDimensions } = getYggPointSummaryDimensions(normalizedJson)
+  const headlineSummary = buildYggPointHeadlineSummary(normalizedJson)
+  const primaryContext = buildYggPointPrimaryContext(normalizedJson)
+  const highlightCards = buildYggPointHighlightCards(normalizedJson)
   const dims = getLegacyYggPointDimensions(normalizedJson)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(() => new Set(initialExpandedRows))
 
   if (normalizedJson.schemaVersion === '2.0' && stageEntries.length > 0) {
     return (
       <Box sx={{ p: 2, display: 'grid', gap: 2 }}>
-        <Paper variant="outlined" sx={{ p: 2 }}>
-          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }}>
-            <Typography variant="body1" fontWeight={700}>
+        <Paper variant="outlined" sx={{ p: 2.5 }}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={1} useFlexGap justifyContent="space-between" alignItems={{ xs: 'flex-start', lg: 'center' }}>
+            <Stack direction="row" spacing={1} useFlexGap alignItems="center">
+              <Typography variant="overline" color="text.secondary">
+                메인 컨텍스트
+              </Typography>
+              {normalizedJson.currentStage && <Chip label={normalizedJson.currentStage} size="small" variant="outlined" />}
+            </Stack>
+            {typeof normalizedJson.ready === 'boolean' && (
+              <Chip label={normalizedJson.ready ? 'ready' : 'not ready'} size="small" color={normalizedJson.ready ? 'success' : 'warning'} />
+            )}
+          </Stack>
+          <Box sx={{ mt: 1.5, display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', lg: 'repeat(2, minmax(0, 1fr))' } }}>
+            <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                최초 질문
+              </Typography>
+              <Typography variant="body1" fontWeight={700} sx={{ whiteSpace: 'pre-wrap' }}>
+                {primaryContext.requestText ?? '초기 요청 정보가 없습니다.'}
+              </Typography>
+            </Paper>
+            <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 2 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.75 }}>
+                최종 반영 답변
+              </Typography>
+              <Typography variant="body1" fontWeight={700} sx={{ whiteSpace: 'pre-wrap' }}>
+                {primaryContext.finalAnswer ?? '최종 반영 답변 이력이 없습니다.'}
+              </Typography>
+            </Paper>
+          </Box>
+        </Paper>
+
+        <Paper variant="outlined" sx={{ p: 2.5 }}>
+          <Stack
+            direction={{ xs: 'column', lg: 'row' }}
+            spacing={2}
+            useFlexGap
+            justifyContent="space-between"
+            alignItems={{ xs: 'flex-start', lg: 'flex-start' }}
+          >
+            <Box sx={{ display: 'grid', gap: 1 }}>
+              <Stack direction="row" spacing={1} useFlexGap alignItems="center">
+                <Typography variant="overline" color="text.secondary">
+                  결과 요약
+                </Typography>
+                <Chip label={headlineSummary.stageLabel} size="small" variant="outlined" />
+                <Chip
+                  label={headlineSummary.readyLabel}
+                  size="small"
+                  color={normalizedJson.ready ? 'success' : 'warning'}
+                />
+              </Stack>
+              <Typography variant="h5" fontWeight={800}>
+                {headlineSummary.headline}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {headlineSummary.supportingText}
+              </Typography>
+            </Box>
+
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} useFlexGap>
+              <Paper variant="outlined" sx={{ p: 1.5, minWidth: 112 }}>
+                <Typography variant="caption" color="text.secondary">점수</Typography>
+                <Typography variant="h4" fontWeight={800}>{headlineSummary.scoreLabel}</Typography>
+              </Paper>
+              <Paper variant="outlined" sx={{ p: 1.5, minWidth: 112 }}>
+                <Typography variant="caption" color="text.secondary">threshold</Typography>
+                <Typography variant="h6" fontWeight={700}>{headlineSummary.thresholdLabel}</Typography>
+              </Paper>
+            </Stack>
+          </Stack>
+
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mt: 1.75 }}>
+            <Typography variant="body2" fontWeight={700}>
               종합 점수: {normalizedJson.score ?? '—'}
             </Typography>
             {normalizedJson.currentStage && <Chip label={normalizedJson.currentStage} size="small" variant="outlined" />}
             {typeof normalizedJson.threshold === 'number' && <Chip label={`threshold ${normalizedJson.threshold.toFixed(2)}`} size="small" variant="outlined" />}
             {typeof normalizedJson.ready === 'boolean' && <Chip label={normalizedJson.ready ? 'ready' : 'not ready'} size="small" color={normalizedJson.ready ? 'success' : 'warning'} />}
           </Stack>
-          {normalizedJson.requestText && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5, whiteSpace: 'pre-wrap' }}>
-              초기 요청: {normalizedJson.requestText}
-            </Typography>
-          )}
         </Paper>
 
-        {summaryDimensions.length > 0 && (
+        {highlightCards.length > 0 && (
           <Paper variant="outlined" sx={{ p: 2, bgcolor: 'background.default' }}>
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }} sx={{ mb: 1.5 }}>
               <Typography variant="subtitle1" fontWeight={700}>
-                차원 설명 요약
+                핵심 판단 근거
               </Typography>
-              {summaryStageName && <Chip label={`${summaryStageName} 기준`} size="small" variant="outlined" />}
+              <Chip label={headlineSummary.stageLabel} size="small" variant="outlined" />
             </Stack>
-            <Stack spacing={1.25}>
-              {summaryDimensions.map((dimension) => (
-                <Box key={`summary-${dimension.name}`}>
-                  <Typography variant="caption" sx={{ fontFamily: 'monospace', fontWeight: 700 }}>
-                    {dimension.name}
-                  </Typography>
+            <Box sx={{ display: 'grid', gap: 1.5, gridTemplateColumns: { xs: '1fr', lg: 'repeat(3, minmax(0, 1fr))' } }}>
+              {highlightCards.map((card) => (
+                <Paper key={card.id} variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Stack direction="row" spacing={1} useFlexGap alignItems="center" sx={{ mb: 1 }}>
+                    <Chip
+                      label={card.statusLabel}
+                      size="small"
+                      color={card.statusLabel === '미달 이유' ? 'warning' : 'success'}
+                    />
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {card.title}
+                    </Typography>
+                  </Stack>
+                  <Stack direction="row" spacing={0.75} useFlexGap sx={{ mb: 1 }}>
+                    <Chip label={card.scoreLabel} size="small" variant="outlined" />
+                    <Chip label={card.deltaLabel} size="small" variant="outlined" />
+                    <Chip label={card.trailCountLabel} size="small" variant="outlined" />
+                  </Stack>
                   <Typography variant="body2" color="text.secondary">
-                    {dimension.description}
+                    {card.summary}
                   </Typography>
-                </Box>
+                </Paper>
               ))}
-            </Stack>
+            </Box>
           </Paper>
         )}
 
@@ -170,7 +251,7 @@ export function YggPointViewer({
             <Paper key={stageName} variant="outlined" sx={{ p: 2, display: 'grid', gap: 2 }}>
               <Box>
                 <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} useFlexGap alignItems={{ xs: 'flex-start', md: 'center' }}>
-                  <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{stageName}</Typography>
+                  <Typography variant="h6" sx={{ textTransform: 'capitalize' }}>{stageName} 드릴다운</Typography>
                   {typeof stage.finalScore === 'number' && <Chip label={`final ${stage.finalScore.toFixed(3)}`} size="small" color="primary" />}
                   {typeof stage.initialScore === 'number' && <Chip label={`initial ${stage.initialScore.toFixed(3)}`} size="small" variant="outlined" />}
                   {typeof stage.delta === 'number' && <Chip label={`delta ${stage.delta >= 0 ? '+' : ''}${stage.delta.toFixed(3)}`} size="small" variant="outlined" />}
@@ -193,7 +274,7 @@ export function YggPointViewer({
                 <Box component="tbody">
                   {stageDimensionRows.map((row) => {
                     const isExpandable = row.canExpand
-                    const rowId = createYggPointRowId(stageName, row.name)
+                    const rowId = row.rowId
                     const isExpanded = expandedRows.has(rowId)
 
                     return (

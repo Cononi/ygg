@@ -16,9 +16,11 @@ export interface QualityEvaluator {
 /** 평가 차원 */
 export interface Dimension {
   readonly name: string
+  readonly displayName: string
   readonly weight: number
   readonly description: string
   readonly baseQuestion: string
+  readonly completionHint: string
   readonly evaluators: readonly QualityEvaluator[]
 }
 
@@ -36,6 +38,7 @@ export interface QAEntry {
   readonly stage?: StageName
   readonly dimension: string
   readonly evaluatorType: string
+  readonly questionId?: string
   readonly question: string
   readonly answer: string
   readonly timestamp: string
@@ -57,7 +60,9 @@ export interface YggPointResult {
 
 /** 다음 질문 */
 export interface YggPointQuestion {
+  readonly id: string
   readonly dimension: string
+  readonly dimensionDisplayName: string
   readonly evaluatorType: string
   readonly question: string
   readonly priority: number
@@ -98,6 +103,7 @@ export interface YggPointDimensionQuestionTrailEntry {
   readonly round: number
   readonly answerSource?: YggPointAnswerSource
   readonly evaluatorType: string
+  readonly questionId?: string
   readonly question: string
   readonly answer: string
   readonly scoreBefore: number
@@ -107,6 +113,7 @@ export interface YggPointDimensionQuestionTrailEntry {
 }
 
 export interface YggPointDimensionDetail {
+  readonly displayName: string
   readonly description: string
   readonly initialScore: number
   readonly finalScore: number

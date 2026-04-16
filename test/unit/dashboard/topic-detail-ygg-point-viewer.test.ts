@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildYggPointHeadlineSummary,
+  buildYggPointHighlightCards,
+  buildYggPointPrimaryContext,
   buildYggPointStageDimensionRows,
   getLegacyYggPointDimensions,
   getYggPointSummaryDimensions,
@@ -23,6 +26,7 @@ const sampleJson: YggPointJson = {
       delta: 0.14,
       dimensions: {
         motivation: {
+          displayName: '왜 필요한가',
           description: 'Why this change matters',
           initialScore: 0.84,
           finalScore: 0.98,
@@ -49,6 +53,7 @@ const sampleJson: YggPointJson = {
       delta: 0.08,
       dimensions: {
         architecture: {
+          displayName: '구현 구조',
           description: 'Implementation structure',
           initialScore: 0.89,
           finalScore: 0.97,
@@ -69,6 +74,7 @@ const sampleJson: YggPointJson = {
           ],
         },
         rollback: {
+          displayName: '롤백 계획',
           description: 'Rollback feasibility',
           initialScore: 0.9,
           finalScore: 0.96,
@@ -163,12 +169,50 @@ describe('topic detail ygg-point view helpers', () => {
 
     expect(summary.stageName).toBe('next')
     expect(summary.dimensions).toEqual([
-      { name: 'architecture', description: 'Implementation structure' },
-      { name: 'rollback', description: 'Rollback feasibility' },
+      { name: 'architecture', displayName: '구현 구조', description: 'Implementation structure' },
+      { name: 'rollback', displayName: '롤백 계획', description: 'Rollback feasibility' },
     ])
     expect(YGG_POINT_TABLE_HEADERS).toEqual(['차원', '초기', '최종', '상승', '근거'])
     expect(YGG_POINT_TABLE_HEADERS).not.toContain('최고')
     expect(YGG_POINT_TABLE_HEADERS).not.toContain('최종 질답')
+  })
+
+  it('builds a headline summary for the current stage outcome', () => {
+    const headline = buildYggPointHeadlineSummary(sampleJson)
+
+    expect(headline).toMatchObject({
+      stageName: 'next',
+      stageLabel: 'next 기준',
+      scoreLabel: '0.970',
+      thresholdLabel: '0.950',
+      readyLabel: 'ready',
+      headline: '현재 결과는 기준을 충족합니다.',
+    })
+    expect(headline.supportingText).toContain('2개 차원')
+  })
+
+  it('builds primary context with the original request and the latest round answer', () => {
+    const context = buildYggPointPrimaryContext(sampleJson)
+
+    expect(context).toEqual({
+      requestText: '처음 작성자가 남긴 질문',
+      finalAnswer: '상단 요약과 행 확장형 이력을 유지하면서 Topic Detail 내부에서만 정리합니다.',
+    })
+  })
+
+  it('builds highlight cards that prioritize current-stage reasoning', () => {
+    const cards = buildYggPointHighlightCards(sampleJson)
+
+    expect(cards).toHaveLength(2)
+    expect(cards[0]).toMatchObject({
+      id: 'next:architecture',
+      title: '구현 구조',
+      statusLabel: '통과 근거',
+      scoreLabel: '최종 0.970',
+      deltaLabel: '상승 +0.080',
+      trailCountLabel: '질답 1개',
+    })
+    expect(cards[0]?.summary).toContain('Notes text')
   })
 
   it('builds expandable row models with compact before/after trail details', () => {
@@ -177,7 +221,7 @@ describe('topic detail ygg-point view helpers', () => {
     expect(rows).toHaveLength(2)
     expect(rows[0]).toMatchObject({
       rowId: 'next:architecture',
-      name: 'architecture',
+      name: '구현 구조',
       initialScoreLabel: '0.890',
       finalScoreLabel: '0.970',
       scoreChangeLabel: '0.890 → 0.970 (+0.080)',
@@ -218,6 +262,59 @@ describe('topic detail ygg-point view helpers', () => {
         score: 0.8,
         notes: 'Why this matters',
       },
+    })
+  })
+
+  it('falls back to legacy request and latest trail answer for primary context', () => {
+    const legacyJson: YggPointJson = {
+      request: '기존 최초 질문',
+      create: {
+        initialScore: 0.9,
+        finalScore: 0.94,
+        delta: 0.04,
+        summary: {
+          motivation: 0.94,
+        },
+      },
+      next: {
+        initialScore: 0.91,
+        finalScore: 0.96,
+        delta: 0.05,
+        summary: {
+          architecture: 0.96,
+        },
+        questionTrail: {
+          architecture: [
+            {
+              round: 2,
+              evaluator: 'reference/consistency',
+              question: '무엇을 최상단에 올리나요?',
+              answer: '최종 반영 답변을 메인 컨텍스트로 올립니다.',
+              answerSource: 'assistant-inferred',
+              scoreBefore: 0.91,
+              scoreAfter: 0.96,
+            },
+          ],
+        },
+      },
+      questionTrail: {
+        motivation: [
+          {
+            round: 1,
+            evaluator: 'humanistic/domain',
+            question: '왜 필요한가?',
+            answer: '최초 질문을 먼저 보여줘야 한다.',
+            answerSource: 'user',
+            scoreBefore: 0.88,
+            scoreAfter: 0.94,
+          },
+        ],
+      },
+    }
+
+    expect(buildYggPointPrimaryContext(legacyJson)).toEqual({
+      requestText: '기존 최초 질문',
+      finalAnswer: '최종 반영 답변을 메인 컨텍스트로 올립니다.',
     })
   })
 })

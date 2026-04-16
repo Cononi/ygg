@@ -413,13 +413,13 @@ export async function renderCodexSkill(skill: string, lang: string): Promise<str
     body.push(`- Claude command source: \`/ygg:${relatedCommand}\``)
     body.push(`- Claude skill source: \`${skill}\``)
     body.push('- Codex behavior: perform the same workflow directly in this repository without relying on Claude-only slash commands or AskUserQuestion primitives.')
-    body.push('- When a Claude step says `AskUserQuestion`, ask the user directly in plain chat and continue from the answer.')
+    body.push('- When a Claude step says `AskUserQuestion`, keep the same interaction contract in Codex: choice prompts must use an interactive selector with arrow-key navigation in TTY flows, while free-form clarification questions can continue in plain chat.')
     body.push('')
   } else {
     body.push('## Source Mapping', '')
     body.push(`- Claude skill source: \`${skill}\``)
     body.push('- Codex behavior: use this as the shared rule set for all ygg workflows in this repository.')
-    body.push('- Treat Claude-only interaction instructions as conversational guidance, not tool requirements.')
+    body.push('- Treat Claude-only interaction instructions as behavior requirements to preserve: for selectable choices, keep interactive arrow-key menus in terminal flows; use plain chat only for open-ended questions.')
     body.push('')
   }
 

@@ -13,12 +13,17 @@ import type { StageDefinition } from '../../types/ygg-point.js'
  */
 export const nextStageDefinition: StageDefinition = {
   stage: 'next',
+  config: {
+    maxQuestionsPerRound: 1,
+  },
   dimensions: [
     {
       name: 'architecture',
+      displayName: '구현 구조',
       weight: 0.25,
       description: '아키텍처 선택 — 어떤 구조/패턴으로 구현할 것인���',
       baseQuestion: '이 변경을 구현할 때 어떤 아키텍처/패턴을 사용할 건가요? (예: Strategy, Builder, 계층 분리 등)',
+      completionHint: '구조 결정이 분명해야 design과 tasks의 순서가 자연스럽습니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -50,9 +55,11 @@ export const nextStageDefinition: StageDefinition = {
     },
     {
       name: 'tradeoff',
+      displayName: '선택의 이유',
       weight: 0.25,
       description: '트레이드오프 — 선택에 따른 장단점을 인지하고 있는가',
       baseQuestion: '이 설계에서 가장 큰 트레이드오프는 무엇인가요? (예: 성능 vs 단순성, 유연성 vs 복잡도)',
+      completionHint: '대안 대비 선택 이유가 있어야 design 품질이 올라갑니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -84,9 +91,11 @@ export const nextStageDefinition: StageDefinition = {
     },
     {
       name: 'constraint',
+      displayName: '지켜야 할 제약',
       weight: 0.2,
       description: '제약 조건 — 기술적/비기능적 제약을 파악했는가',
       baseQuestion: '��� 구현에서 반드시 지켜야 할 제약 조건이 있나요? (성능, 보안, 호환성, 테스트 등)',
+      completionHint: '제약이 드러나야 spec과 verification 기준이 정확해집니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -118,9 +127,11 @@ export const nextStageDefinition: StageDefinition = {
     },
     {
       name: 'dependency',
+      displayName: '구현 순서와 의존성',
       weight: 0.15,
       description: '의존성 — 구현 순서와 모듈 간 의존 관계를 파악했는가',
       baseQuestion: '이 변경의 구현 순서에서 먼저 해야 할 것과 나중에 해야 할 것이 있나요? 모듈 간 의존 관계는?',
+      completionHint: '선후 관계가 분명해야 tasks.md가 바로 실행 가능한 계획이 됩니다.',
       evaluators: [
         {
           type: 'humanistic',
@@ -152,9 +163,11 @@ export const nextStageDefinition: StageDefinition = {
     },
     {
       name: 'rollback',
+      displayName: '문제 생기면 어떻게 되돌리나',
       weight: 0.15,
       description: '롤백 계획 — 문제 발생 시 되돌릴 수 있는가',
       baseQuestion: '이 변경에서 문제가 발생하면 어떻게 되돌리나요? 롤백 전략이 있나요?',
+      completionHint: '되돌리기 전략이 있어야 design과 verification이 안전합니다.',
       evaluators: [
         {
           type: 'humanistic',

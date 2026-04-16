@@ -58,12 +58,11 @@ ygg/change/
 - **humanistic/domain**: 사용자 답변 필수
 - **reference/consistency**: 코드/문서로 자동 검증
 
-**루프**: 가장 낮은 차원에서 1~3개 질문 → 답변 반영 → 점수 재계산 → 반복.
-`ygg-create`와 `ygg-next`에서는 auto-verifiable한 `reference` / `consistency` evaluator도 `ygg point auto-mode` 설정의 영향을 받아야 한다. `on`일 때만 먼저 내부 처리하고, `off`일 때는 사용자 확인 기반 질문 흐름으로 남긴다.
-`ygg point auto-mode=off`일 때는 `create`와 `next`가 각 차원마다 최소 5회의 사용자 답변 질문을 받은 뒤에만 스테이지를 마무리할 수 있다. 점수가 먼저 0.95를 넘더라도 이 최소 질답 수는 유지한다.
-그 최소 횟수를 채운 뒤에도 점수가 부족하면, 특정 차원의 점수를 더 끌어올릴지 현재 상태로 마무리할지 다시 선택하게 한다.
-저장되는 모든 답변은 차원, evaluator, answerSource, 점수 이전/이후 값과 함께 묶여서 Topic Detail이 점수 상승 이유를 설명할 수 있어야 한다. `questionTrail.round`는 각 차원 안에서 다시 `1`부터 시작하며, 그 차원의 점수가 질문에 따라 어떻게 단계적으로 올라갔는지 보여줘야 한다.
-스테이지 점수가 0.95 이상이 될 때까지 루프를 계속한다.
+**루프**: 가장 부족한 정보를 겨냥해 질문을 정확히 한 번에 하나씩 묻고 → 답변 반영 → 점수 재계산 → 반복.
+`ygg-create`에서만 auto-verifiable한 `reference` / `consistency` evaluator가 `ygg point auto-mode` 설정의 영향을 받는다. `on`일 때만 먼저 내부 처리하고, `off`일 때는 사용자 확인 기반 질문 흐름으로 남긴다.
+`ygg-next`는 새 질문을 받지 않고 create 단계에서 누적된 데이터로 설계 문서를 생성한다.
+차원별 최소 5회 같은 고정 규칙은 두지 않는다. 스테이지 점수가 0.95 이상이 되거나 더 나은 질문이 남지 않을 때까지 루프를 계속한다.
+저장되는 모든 답변은 차원, evaluator, answerSource, 점수 이전/이후 값과 함께 묶여서 Topic Detail이 점수 상승 이유를 설명할 수 있어야 한다. `questionTrail.round`는 스테이지 전체에서 1, 2, 3, ... 계속 증가해야 한다.
 
 ## Document Formats
 
@@ -101,7 +100,7 @@ ygg/change/
 4. Spec 제약 준수
 5. tasks.md 즉시 업데이트
 6. AskUserQuestion 필수 사용, 자동 선택 금지
-7. 모든 사용자 선택지는 번호가 있는 목록으로 제시하고, 터미널에서는 숫자 키와 방향키 선택을 모두 지원해야 한다
+7. 모든 사용자 선택지는 반드시 인터랙티브 입력이어야 한다. 터미널에서는 화살표 선택 UI를 기본으로 먼저 제공해야 하며, 숫자 입력은 보조 단축키일 뿐 이를 대체할 수 없다
 8. 추천 옵션에 `(Recommended)`, Cancel/Skip 항상 포함
 9. Deprecated API 사용 금지 — 최신 대체로 마이그레이션
 10. 모든 ygg/ 문서 200줄 미만 유지

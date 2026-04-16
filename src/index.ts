@@ -64,8 +64,11 @@ export { YggPointEngine, isYggPointAutoModeEnabled, resolveYggPointAutoMode } fr
 export { createYggPointDocument } from './core/ygg-point.js'
 export { createStageDefinition } from './core/dimensions/create.js'
 export { nextStageDefinition } from './core/dimensions/next.js'
+export { runAdd } from './commands/add.js'
+export { runArchive } from './commands/archive.js'
 export { runCreate } from './commands/create.js'
 export { runNext } from './commands/next.js'
+export { runQa } from './commands/qa.js'
 
 // Generators
 export { generateAgent } from './generators/agent-generator.js'
