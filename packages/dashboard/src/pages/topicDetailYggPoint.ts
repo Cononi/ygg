@@ -1,16 +1,24 @@
 export interface YggPointJson {
+  topic?: string
+  date?: string
+  archiveType?: string
   schemaVersion?: string
   version?: string
   request?: string
+  originalRequest?: string
   requestText?: string
   score?: number
   totalScore?: number
   total?: number
+  initialScore?: number
+  finalScore?: number
+  delta?: number
   threshold?: number
   currentStage?: string
   stage?: string
   status?: string
   ready?: boolean
+  summary?: Record<string, string> | Record<string, number>
   history?: Array<{
     stage?: string
     dimension?: string
@@ -22,6 +30,30 @@ export interface YggPointJson {
     scoreAfter?: number
   }>
   dimensions?: Record<string, { score?: number; note?: string; notes?: string }>
+    | Array<{
+      id?: string
+      key?: string
+      label?: string
+      displayName?: string
+      description?: string
+      reason?: string
+      rationale?: string
+      note?: string
+      notes?: string
+      score?: number
+      initialScore?: number
+      finalScore?: number
+      delta?: number
+      questionTrail?: Array<{
+        round?: number
+        evaluator?: string
+        answerSource?: string
+        question?: string
+        answer?: string
+        scoreBefore?: number
+        scoreAfter?: number
+      }>
+    }>
   create?: {
     initialScore?: number
     finalScore?: number
@@ -42,6 +74,37 @@ export interface YggPointJson {
       scoreBefore?: number
       scoreAfter?: number
     }>>
+  }
+  nextStage?: {
+    status?: string
+    initialScore?: number
+    finalScore?: number
+    delta?: number
+    summary?: Record<string, string>
+    dimensions?: Array<{
+      id?: string
+      key?: string
+      label?: string
+      displayName?: string
+      description?: string
+      reason?: string
+      rationale?: string
+      note?: string
+      notes?: string
+      score?: number
+      initialScore?: number
+      finalScore?: number
+      delta?: number
+      questionTrail?: Array<{
+        round?: number
+        evaluator?: string
+        answerSource?: string
+        question?: string
+        answer?: string
+        scoreBefore?: number
+        scoreAfter?: number
+      }>
+    }>
   }
   questionTrail?: Record<string, Array<{
     round?: number
@@ -217,7 +280,7 @@ function truncateText(value: string | undefined, maxLength: number): string {
 }
 
 function getRequestText(json: YggPointJson): string | null {
-  const value = json.requestText ?? json.request
+  const value = json.requestText ?? json.originalRequest ?? json.request
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
@@ -388,9 +451,94 @@ function toLegacyQuestionTrail(
 function inferCurrentStage(json: YggPointJson): string {
   if (json.currentStage) return json.currentStage
   if (json.stage === 'create' || json.stage === 'next') return json.stage
+  if (json.stage === 'add' || json.stage === 'qa' || json.stage === 'teams' || json.stage === 'prove') return 'next'
+  if (json.nextStage) return 'next'
   if (json.next) return 'next'
   if (json.create) return 'create'
   return 'create'
+}
+
+type LegacyTrailEntry = {
+  round?: number
+  answerSource?: string
+  evaluatorType?: string
+  question?: string
+  answer?: string
+  scoreBefore?: number
+  scoreAfter?: number
+  delta?: number
+}
+
+type LegacyArrayDimension = NonNullable<Extract<YggPointJson['dimensions'], readonly unknown[]>>[number]
+
+function normalizeArrayStage(
+  stageName: 'create' | 'next',
+  stageData: {
+    initialScore?: number
+    finalScore?: number
+    delta?: number
+    status?: string
+    summary?: Record<string, string> | Record<string, number>
+    dimensions?: LegacyArrayDimension[]
+  } | undefined,
+): NonNullable<YggPointJson['stages']>[string] | undefined {
+  if (!stageData) return undefined
+
+  const descriptions = stageName === 'create' ? CREATE_DIMENSION_DESCRIPTIONS : NEXT_DIMENSION_DESCRIPTIONS
+  const dimensions = Object.fromEntries(
+    (stageData.dimensions ?? []).map((dimension, index) => {
+      const name = dimension.id ?? dimension.key ?? `dimension-${index + 1}`
+      const trail = (dimension.questionTrail ?? []).map((entry, trailIndex) => {
+        const scoreBefore = entry.scoreBefore
+        const scoreAfter = entry.scoreAfter ?? dimension.score ?? dimension.finalScore
+        return {
+          round: entry.round ?? trailIndex + 1,
+          answerSource: entry.answerSource,
+          evaluatorType: entry.evaluator,
+          question: entry.question,
+          answer: entry.answer,
+          scoreBefore,
+          scoreAfter,
+          delta:
+            typeof scoreBefore === 'number' && typeof scoreAfter === 'number'
+              ? scoreAfter - scoreBefore
+              : undefined,
+        } satisfies LegacyTrailEntry
+      })
+      const inferredInitial = dimension.initialScore ?? trail[0]?.scoreBefore ?? stageData.initialScore
+      const inferredFinal = dimension.finalScore ?? dimension.score ?? trail[trail.length - 1]?.scoreAfter
+      const inferredDelta = dimension.delta ?? (
+        typeof inferredInitial === 'number' && typeof inferredFinal === 'number'
+          ? inferredFinal - inferredInitial
+          : undefined
+      )
+
+      return [name, {
+        displayName: dimension.displayName ?? dimension.label ?? descriptions[name] ?? name,
+        description: dimension.description ?? descriptions[name] ?? dimension.label ?? name,
+        initialScore: inferredInitial,
+        finalScore: inferredFinal,
+        delta: inferredDelta,
+        rationale: dimension.rationale ?? dimension.reason ?? trail[trail.length - 1]?.answer ?? '',
+        notes: dimension.notes ?? dimension.note ?? trail[trail.length - 1]?.question ?? '',
+        questionTrail: trail,
+      }]
+    }),
+  )
+
+  const questionCount = Object.values(dimensions).reduce((sum, dimension) => sum + (dimension.questionTrail?.length ?? 0), 0)
+  const rounds = Object.values(dimensions).reduce((max, dimension) => Math.max(max, ...((dimension.questionTrail ?? []).map(entry => entry.round ?? 0))), 0)
+
+  return {
+    ready: stageData.status ? stageData.status === 'ready' : true,
+    initialScore: stageData.initialScore,
+    finalScore: stageData.finalScore,
+    delta: stageData.delta,
+    rounds,
+    questionsAnswered: questionCount,
+    improvementSummary: Object.values(stageData.summary ?? {}).find(value => typeof value === 'string') ?? '',
+    dimensions,
+  }
 }
 
 function normalizeLegacyStage(
@@ -459,7 +607,31 @@ export function normalizeYggPointJson(json: YggPointJson): YggPointJson {
     return json
   }
 
-  if (!json.create && !json.next) {
+  if (json.stages) {
+    return {
+      ...json,
+      schemaVersion: '2.0',
+      requestText: json.requestText ?? json.originalRequest ?? json.request,
+      currentStage: json.currentStage ?? inferCurrentStage(json),
+      score: json.score ?? json.totalScore ?? json.total ?? json.finalScore,
+      threshold: json.threshold ?? DEFAULT_THRESHOLD,
+      ready: json.ready ?? (json.status === 'ready' || json.status === 'approved'),
+    }
+  }
+
+  const createStageFromArray = Array.isArray(json.dimensions)
+    ? normalizeArrayStage('create', {
+      initialScore: json.initialScore,
+      finalScore: json.finalScore,
+      delta: json.delta,
+      status: json.status,
+      summary: json.summary as Record<string, string> | undefined,
+      dimensions: json.dimensions,
+    })
+    : undefined
+  const nextStageFromArray = normalizeArrayStage('next', json.nextStage)
+
+  if (!json.create && !json.next && !createStageFromArray && !nextStageFromArray) {
     return json
   }
 
@@ -474,7 +646,7 @@ export function normalizeYggPointJson(json: YggPointJson): YggPointJson {
     schemaVersion: '2.0',
     topic: json.topic,
     date: json.date,
-    requestText: json.requestText ?? json.request,
+    requestText: json.requestText ?? json.originalRequest ?? json.request,
     archiveType: json.archiveType,
     currentStage,
     threshold: json.threshold ?? DEFAULT_THRESHOLD,
@@ -482,11 +654,14 @@ export function normalizeYggPointJson(json: YggPointJson): YggPointJson {
       json.score
       ?? json.totalScore
       ?? json.total
+      ?? json.finalScore
       ?? currentStageSnapshot?.finalScore,
     ready: json.ready ?? (json.status === 'ready' || json.status === 'approved'),
     dimensions: json.dimensions,
     stages: {
+      ...(createStageFromArray ? { create: createStageFromArray } : {}),
       ...(createStage ? { create: createStage } : {}),
+      ...(nextStageFromArray ? { next: nextStageFromArray } : {}),
       ...(nextStage ? { next: nextStage } : {}),
     },
   }

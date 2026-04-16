@@ -22,6 +22,7 @@ export const AGENT_DOC_FILENAMES = {
   claude: 'CLAUDE.md',
   codex: 'AGENTS.md',
 } as const
+export const YGG_SCRIPTS_DIR = join('ygg', 'scripts')
 
 export const YGG_COMMANDS = ['add', 'create', 'next', 'point', 'prove', 'qa', 'status', 'teams']
 
@@ -78,6 +79,7 @@ export async function runInit(projectRoot: string, options: InitOptions): Promis
 /** 워크플로우 자산 생성: commands, skills, agents, hooks */
 async function scaffoldWorkflowAssets(projectRoot: string, lang: string): Promise<void> {
   const claudeDir = join(projectRoot, '.claude')
+  const yggScriptsDir = join(projectRoot, YGG_SCRIPTS_DIR)
   const langDir = getLangDir(lang)
   const commands = await listTemplateCommands(lang)
   const skills = await listTemplateSkills(lang)
@@ -88,7 +90,7 @@ async function scaffoldWorkflowAssets(projectRoot: string, lang: string): Promis
   const dirs = [
     join(claudeDir, 'agents'),
     join(claudeDir, 'commands', 'ygg'),
-    join(claudeDir, 'scripts'),
+    yggScriptsDir,
     ...skills.map(skill => join(claudeDir, 'skills', skill)),
   ]
   for (const dir of dirs) {
@@ -122,17 +124,17 @@ async function scaffoldWorkflowAssets(projectRoot: string, lang: string): Promis
     )
   }
 
-  // Hook scripts: .claude/scripts/
+  // Hook scripts: ygg/scripts/
   for (const script of scripts) {
     await copyIfNotExists(
       join(INIT_TEMPLATES_DIR, 'scripts', script),
-      join(claudeDir, 'scripts', script),
-      `.claude/scripts/${script}`,
+      join(yggScriptsDir, script),
+      `${YGG_SCRIPTS_DIR}/${script}`,
     )
   }
   // 스크립트 실행 권한 부여
   for (const script of scripts) {
-    const scriptPath = join(claudeDir, 'scripts', script)
+    const scriptPath = join(yggScriptsDir, script)
     if (await fileExists(scriptPath)) {
       await chmod(scriptPath, 0o755)
     }

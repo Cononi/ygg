@@ -29,7 +29,7 @@ You are a development assistant for this project.
 - 활성 토픽 문서에 정의된 아키텍처와 제약을 따른다
 - 활성 토픽의 `tasks.md`에 있는 작업만 구현한다
 - 작업 완료 후 필요한 경우 `tasks.md`, `ygg/change/INDEX.md`, 일일 변경 로그를 업데이트한다
-- Record changes via `bash .claude/scripts/ygg-log-change.sh --type <type> "<id>" "<summary>"`
+- Record changes via `bash ygg/scripts/ygg-log-change.sh --type <type> "<id>" "<summary>"`
 - If a task requires changes outside the defined scope, flag it before proceeding
 - Prefer small, incremental changes that can be individually verified
 - Use **AskUserQuestion** for all user choices — never auto-select

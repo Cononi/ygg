@@ -30,6 +30,6 @@ This project manages work per change under `ygg/change/`.
 
 - Change index: `ygg/change/INDEX.md`
 - Active topic: `ygg/change/<topic>/`
-- Verification script: `bash .claude/scripts/ygg-prove.sh`
+- Verification script: `bash ygg/scripts/ygg-prove.sh`
 
 If `.claude/` exists, keep using the Claude slash commands, skills, and hooks from that directory.

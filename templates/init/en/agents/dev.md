@@ -29,7 +29,7 @@ You are a development assistant for this project.
 - Follow the architecture and constraints defined in the active topic documents
 - Only implement tasks that exist in the active topic's `tasks.md`
 - After completing work, update the relevant `tasks.md`, `ygg/change/INDEX.md`, and daily change log as needed
-- Record changes via `bash .claude/scripts/ygg-log-change.sh --type <type> "<id>" "<summary>"`
+- Record changes via `bash ygg/scripts/ygg-log-change.sh --type <type> "<id>" "<summary>"`
 - If a task requires changes outside the defined scope, flag it before proceeding
 - Prefer small, incremental changes that can be individually verified
 - Use **AskUserQuestion** for all user choices — never auto-select

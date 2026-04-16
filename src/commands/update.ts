@@ -11,6 +11,7 @@ import { getPackageVersion } from '../utils/package-version.js'
 import {
   AGENT_DOC_FILENAMES,
   INIT_TEMPLATES_DIR,
+  YGG_SCRIPTS_DIR,
   getLangDir,
   listTemplateAgents,
   listTemplateCommands,
@@ -78,6 +79,7 @@ export async function copyI18nFiles(
 export async function runUpdate(projectRoot: string): Promise<void> {
   const claudeDir = join(projectRoot, '.claude')
   const yggDir = join(projectRoot, 'ygg')
+  const yggScriptsDir = join(projectRoot, YGG_SCRIPTS_DIR)
   const targets = await resolveUpdateTargets(projectRoot)
 
   if (targets.length === 0 && !await fileExists(yggDir)) {
@@ -104,8 +106,8 @@ export async function runUpdate(projectRoot: string): Promise<void> {
     const scripts = await listTemplateScripts()
     for (const script of scripts) {
       const src = join(INIT_TEMPLATES_DIR, 'scripts', script)
-      const dest = join(claudeDir, 'scripts', script)
-      const result = await copyFromTemplate(src, dest, `.claude/scripts/${script}`)
+      const dest = join(yggScriptsDir, script)
+      const result = await copyFromTemplate(src, dest, `${YGG_SCRIPTS_DIR}/${script}`)
       if (result === 'updated') updated++
       else if (result === 'skipped') skipped++
       if (await fileExists(dest)) {
@@ -174,11 +176,11 @@ async function cleanupDeprecated(claudeDir: string, lang: string): Promise<numbe
   )
 
   // hook scripts: templates에 정의된 목록과 실제 파일을 비교
-  const scriptsDir = join(claudeDir, 'scripts')
+  const scriptsDir = join(resolve(claudeDir, '..'), YGG_SCRIPTS_DIR)
   removed += await removeStaleFiles(
     scriptsDir,
     new Set(scripts),
-    '.claude/scripts',
+    YGG_SCRIPTS_DIR,
     'ygg-',
   )
 

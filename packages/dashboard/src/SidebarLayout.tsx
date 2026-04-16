@@ -1,23 +1,22 @@
 import { useContext } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Link as RouterLink, Outlet, useLocation } from 'react-router-dom'
 import AppBar from '@mui/material/AppBar'
 import Toolbar from '@mui/material/Toolbar'
 import Typography from '@mui/material/Typography'
 import IconButton from '@mui/material/IconButton'
 import Box from '@mui/material/Box'
-import Paper from '@mui/material/Paper'
 import Chip from '@mui/material/Chip'
+import Button from '@mui/material/Button'
 import Brightness4Icon from '@mui/icons-material/Brightness4'
 import Brightness7Icon from '@mui/icons-material/Brightness7'
 import { useTheme } from '@mui/material/styles'
-import { ColorModeContext } from './App'
-import ProjectSidebar from './components/ProjectSidebar'
 
-const SIDEBAR_WIDTH = 308
+import { ColorModeContext } from './App'
 
 export default function SidebarLayout() {
   const theme = useTheme()
   const { toggleColorMode } = useContext(ColorModeContext)
+  const location = useLocation()
 
   return (
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default' }}>
@@ -34,11 +33,31 @@ export default function SidebarLayout() {
         <Toolbar sx={{ minHeight: 72, px: { xs: 2, md: 3 } }}>
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 0.25 }}>
-              Operations workspace
+              Workspace hub
             </Typography>
             <Typography variant="h6" sx={{ fontWeight: 700 }}>
               ygg dashboard
             </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', gap: 1, mr: 1.5 }}>
+            <Button
+              component={RouterLink}
+              to="/"
+              size="small"
+              color="inherit"
+              variant={location.pathname === '/' ? 'contained' : 'text'}
+            >
+              Projects
+            </Button>
+            <Button
+              component={RouterLink}
+              to="/manage/categories"
+              size="small"
+              color="inherit"
+              variant={location.pathname.startsWith('/manage') ? 'contained' : 'text'}
+            >
+              Operations
+            </Button>
           </Box>
           <Chip
             label={theme.palette.mode === 'dark' ? 'Dark mode' : 'Light mode'}
@@ -52,53 +71,8 @@ export default function SidebarLayout() {
         </Toolbar>
       </AppBar>
 
-      <Box
-        sx={{
-          display: 'grid',
-          gridTemplateColumns: { xs: '1fr', md: `${SIDEBAR_WIDTH}px minmax(0, 1fr)` },
-          gridTemplateRows: { xs: 'auto minmax(0, 1fr)', md: '1fr' },
-          gap: 2,
-          p: { xs: 1.5, md: 2.5 },
-          minHeight: 'calc(100vh - 73px)',
-          height: { xs: 'auto', md: 'calc(100vh - 73px)' },
-        }}
-      >
-        <Paper
-          variant="outlined"
-          sx={{
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: 0,
-            maxHeight: { xs: 360, md: 'none' },
-            borderRadius: 1,
-            bgcolor: 'background.paper',
-            boxShadow: theme.palette.mode === 'light'
-              ? '0 20px 45px rgba(15, 23, 42, 0.08)'
-              : '0 20px 45px rgba(0, 0, 0, 0.28)',
-          }}
-        >
-          <ProjectSidebar />
-        </Paper>
-
-        <Paper
-          variant="outlined"
-          sx={{
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-            minHeight: { xs: 420, md: 0 },
-            borderRadius: 1,
-            bgcolor: 'background.paper',
-            boxShadow: theme.palette.mode === 'light'
-              ? '0 20px 45px rgba(15, 23, 42, 0.08)'
-              : '0 20px 45px rgba(0, 0, 0, 0.28)',
-          }}
-        >
-          <Box sx={{ flex: 1, overflow: 'auto' }}>
-            <Outlet />
-          </Box>
-        </Paper>
+      <Box sx={{ p: { xs: 1.5, md: 2.5 } }}>
+        <Outlet />
       </Box>
     </Box>
   )

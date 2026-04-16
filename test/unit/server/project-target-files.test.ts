@@ -73,7 +73,16 @@ describe('dashboard target-aware file sources', () => {
     expect(projectRes.statusCode).toBe(200)
 
     const payload = projectRes.json() as {
-      info: { latestReleaseVersion?: string; latestReleaseDate?: string }
+      info: {
+        latestReleaseVersion?: string
+        latestReleaseDate?: string
+        contentSummary: {
+          skills: number
+          agents: number
+          commands: number
+          changes: number
+        }
+      }
       targets: Array<{
         target: string
         files: { skills: string[]; agents: string[]; commands: string[] }
@@ -82,6 +91,12 @@ describe('dashboard target-aware file sources', () => {
 
     expect(payload.info.latestReleaseVersion).toBe('v0.0.2')
     expect(payload.info.latestReleaseDate).toBe('2026-04-15')
+    expect(payload.info.contentSummary).toEqual({
+      skills: 2,
+      agents: 1,
+      commands: 1,
+      changes: 2,
+    })
 
     expect(payload.targets.map(target => target.target)).toEqual(['claude', 'codex', 'custom-ai'])
     expect(payload.targets.find(target => target.target === 'claude')?.files).toEqual({

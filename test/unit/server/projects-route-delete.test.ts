@@ -66,7 +66,16 @@ describe('project delete route', () => {
 
     const listRes = await app.inject({ method: 'GET', url: '/api/projects' })
     expect(listRes.statusCode).toBe(200)
-    expect(listRes.json()).toEqual({ projects: [] })
+    expect(listRes.json()).toEqual({
+      categories: ['home'],
+      projects: [],
+      groupedProjects: [
+        {
+          category: 'home',
+          projects: [],
+        },
+      ],
+    })
 
     await expect(access(projectRoot)).resolves.toBeUndefined()
     await app.close()

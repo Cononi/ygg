@@ -5,10 +5,12 @@ import CssBaseline from '@mui/material/CssBaseline'
 import { buildTheme } from './theme'
 import SidebarLayout from './SidebarLayout'
 import FullscreenLayout from './FullscreenLayout'
-import ProjectEmptyState from './pages/ProjectEmptyState'
+import ManageLayout from './pages/ManageLayout'
+import ProjectHome from './pages/ProjectHome'
 import ProjectDetail from './pages/ProjectDetail'
 import FileEditor from './pages/FileEditor'
 import TopicDetail from './pages/TopicDetail'
+import ProjectCategories from './pages/ProjectCategories'
 
 export const ColorModeContext = createContext({ toggleColorMode: () => {} })
 
@@ -37,13 +39,14 @@ export default function App() {
         <CssBaseline />
         <BrowserRouter>
           <Routes>
-            {/* 사이드바 레이아웃: 프로젝트 목록 + 디테일 패널 */}
             <Route element={<SidebarLayout />}>
-              <Route path="/" element={<ProjectEmptyState />} />
+              <Route path="/" element={<ProjectHome />} />
               <Route path="/projects/:id" element={<ProjectDetail />} />
+              <Route path="/manage" element={<ManageLayout />}>
+                <Route path="categories" element={<ProjectCategories />} />
+              </Route>
             </Route>
 
-            {/* 전체화면 레이아웃: 파일 편집 / 토픽 상세 */}
             <Route element={<FullscreenLayout />}>
               <Route path="/projects/:id/files/:target/:type/:name" element={<FileEditor />} />
               <Route path="/projects/:id/changes/archive/:archiveTopic" element={<TopicDetail />} />

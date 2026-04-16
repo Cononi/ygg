@@ -3,12 +3,12 @@
 # 토픽 기반 변경 기록 생성
 #
 # 사용법:
-#   bash .claude/scripts/ygg-log-change.sh "<topic>" "<summary>"
-#   bash .claude/scripts/ygg-log-change.sh --archive "<topic>"
+#   bash ygg/scripts/ygg-log-change.sh "<topic>" "<summary>"
+#   bash ygg/scripts/ygg-log-change.sh --archive "<topic>"
 #
 # 예시:
-#   bash .claude/scripts/ygg-log-change.sh "apply-command" "apply 통합 커맨드 구현"
-#   bash .claude/scripts/ygg-log-change.sh --archive "apply-command"
+#   bash ygg/scripts/ygg-log-change.sh "apply-command" "apply 통합 커맨드 구현"
+#   bash ygg/scripts/ygg-log-change.sh --archive "apply-command"
 
 set -euo pipefail
 

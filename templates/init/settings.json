@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/scripts/ygg-scope-check.sh"
+            "command": "bash ygg/scripts/ygg-scope-check.sh"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/scripts/ygg-track-change.sh"
+            "command": "bash ygg/scripts/ygg-track-change.sh"
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/scripts/ygg-progress-check.sh"
+            "command": "bash ygg/scripts/ygg-progress-check.sh"
           }
         ]
       }

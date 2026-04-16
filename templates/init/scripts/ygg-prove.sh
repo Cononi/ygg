@@ -19,7 +19,7 @@ check_dir "ygg"
 check_dir "ygg/change"
 check_dir "ygg/change/archive" warn
 if has_claude_layout; then
-  for d in .claude .claude/agents .claude/commands/ygg .claude/scripts; do
+  for d in .claude .claude/agents .claude/commands/ygg ygg/scripts; do
     check_dir "$d"
   done
 else
@@ -101,8 +101,8 @@ fi
 
 section "6. Scripts"
 SCRIPT_BASE=""
-if [ -d ".claude/scripts" ]; then
-  SCRIPT_BASE=".claude/scripts"
+if [ -d "ygg/scripts" ]; then
+  SCRIPT_BASE="ygg/scripts"
 elif [ -d "templates/init/scripts" ]; then
   SCRIPT_BASE="templates/init/scripts"
 fi

@@ -30,6 +30,6 @@
 
 - 변경 목록: `ygg/change/INDEX.md`
 - 활성 토픽: `ygg/change/<topic>/`
-- 검증 스크립트: `bash .claude/scripts/ygg-prove.sh`
+- 검증 스크립트: `bash ygg/scripts/ygg-prove.sh`
 
 `.claude/` 디렉토리가 있으면 Claude용 slash command, skills, hooks를 그대로 사용합니다.

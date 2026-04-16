@@ -160,6 +160,75 @@ describe('topic detail ygg-point view helpers', () => {
     })
   })
 
+  it('normalizes array-based dashboard snapshots with originalRequest and nextStage', () => {
+    const legacyDashboardJson: YggPointJson = {
+      originalRequest: 'ygg dashboard 개선',
+      stage: 'add',
+      status: 'ready',
+      initialScore: 0.78,
+      finalScore: 0.97,
+      delta: 0.19,
+      summary: {
+        label: '관리 페이지 구조 재편',
+        description: '구형 dashboard ygg-point 문서',
+      },
+      dimensions: [
+        {
+          key: 'motivation',
+          label: 'Motivation',
+          initialScore: 0.82,
+          finalScore: 0.98,
+          questionTrail: [
+            {
+              round: 1,
+              evaluator: 'humanistic/domain',
+              question: '왜 필요한가?',
+              answer: '대시보드의 관리 흐름을 바로 이해할 수 있어야 한다.',
+              answerSource: 'user',
+              scoreBefore: 0.82,
+              scoreAfter: 0.98,
+            },
+          ],
+        },
+      ],
+      nextStage: {
+        status: 'ready',
+        initialScore: 0.84,
+        finalScore: 0.96,
+        delta: 0.12,
+        summary: {
+          architecture: '관리 레이아웃 분리',
+        },
+        dimensions: [
+          {
+            id: 'architecture',
+            label: 'Architecture',
+            score: 0.97,
+            reason: 'App/SidebarLayout를 중첩 라우트 기반으로 재편한다.',
+          },
+        ],
+      },
+    }
+
+    const normalized = normalizeYggPointJson(legacyDashboardJson)
+
+    expect(normalized.schemaVersion).toBe('2.0')
+    expect(normalized.requestText).toBe('ygg dashboard 개선')
+    expect(normalized.currentStage).toBe('next')
+    expect(normalized.score).toBe(0.97)
+    expect(normalized.ready).toBe(true)
+    expect(normalized.stages?.create?.dimensions.motivation).toMatchObject({
+      displayName: 'Motivation',
+      initialScore: 0.82,
+      finalScore: 0.98,
+    })
+    expect(normalized.stages?.next?.dimensions.architecture).toMatchObject({
+      displayName: 'Architecture',
+      finalScore: 0.97,
+      rationale: 'App/SidebarLayout를 중첩 라우트 기반으로 재편한다.',
+    })
+  })
+
   it('returns an empty legacy dimension map when schema 2.0 data omits top-level dimensions', () => {
     expect(getLegacyYggPointDimensions(sampleJson)).toEqual({})
   })

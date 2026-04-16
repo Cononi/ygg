@@ -55,7 +55,7 @@ describe('runInit', () => {
       listRelativeEntries(join(projectRoot, '.claude', 'commands', 'ygg')),
       listRelativeEntries(join(projectRoot, '.claude', 'skills')),
       listRelativeEntries(join(projectRoot, '.claude', 'agents')),
-      listRelativeEntries(join(projectRoot, '.claude', 'scripts')),
+      listRelativeEntries(join(projectRoot, 'ygg', 'scripts')),
     ])
 
     expect(shared).toContain('ygg/change/')
@@ -122,7 +122,7 @@ describe('runUpdate', () => {
     await runInit(projectRoot, { targets: ['claude', 'codex'] })
     await rm(join(projectRoot, '.claude', 'commands', 'ygg', 'point.md'))
     await rm(join(projectRoot, '.claude', 'agents', 'expert-security.md'))
-    await rm(join(projectRoot, '.claude', 'scripts', 'ygg-prove.sh'))
+    await rm(join(projectRoot, 'ygg', 'scripts', 'ygg-prove.sh'))
     await rm(join(projectRoot, '.claude', 'skills', 'ygg-create'), { recursive: true, force: true })
 
     await runUpdate(projectRoot)
@@ -137,7 +137,7 @@ describe('runUpdate', () => {
       listRelativeEntries(join(projectRoot, '.claude', 'commands', 'ygg')),
       listRelativeEntries(join(projectRoot, '.claude', 'skills')),
       listRelativeEntries(join(projectRoot, '.claude', 'agents')),
-      listRelativeEntries(join(projectRoot, '.claude', 'scripts')),
+      listRelativeEntries(join(projectRoot, 'ygg', 'scripts')),
     ])
 
     expect(actualCommands).toEqual(expectedCommands.map((entry) => `${entry}.md`))

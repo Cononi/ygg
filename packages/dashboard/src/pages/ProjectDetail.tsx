@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import Box from '@mui/material/Box'
-import Grid from '@mui/material/Grid'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
@@ -9,413 +8,263 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import Tabs from '@mui/material/Tabs'
 import Tab from '@mui/material/Tab'
-import Alert from '@mui/material/Alert'
 import CircularProgress from '@mui/material/CircularProgress'
-import IconButton from '@mui/material/IconButton'
-import Menu from '@mui/material/Menu'
-import MenuItem from '@mui/material/MenuItem'
-import Dialog from '@mui/material/Dialog'
-import DialogTitle from '@mui/material/DialogTitle'
-import DialogContent from '@mui/material/DialogContent'
-import DialogActions from '@mui/material/DialogActions'
-import { DataGrid, type GridColDef } from '@mui/x-data-grid'
-import OpenInNewIcon from '@mui/icons-material/OpenInNew'
-import MoreVertIcon from '@mui/icons-material/MoreVert'
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline'
+import Alert from '@mui/material/Alert'
+import Divider from '@mui/material/Divider'
+import TextField from '@mui/material/TextField'
+import ButtonGroup from '@mui/material/ButtonGroup'
+import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded'
+import AppsRoundedIcon from '@mui/icons-material/AppsRounded'
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
+
 import { api } from '../api/client'
-import type { ChangeStatus, ProjectDetail as ProjectDetailType, ProjectInfo } from '../types'
-import {
-  buildChangeSummary,
-  createLatestRequestGuard,
-  createProjectDetailResetState,
-  resolveProjectDetailChangeStatus,
-} from '../utils/projectViewState'
 import Changes from './Changes'
+import type { ProjectContentType, ProjectDetail as ProjectDetailType } from '../types'
+import { flattenTargetFileItems } from '../utils/projectDashboard'
+import { shouldUseHistoryBack } from '../utils/navigation'
 
-const VERSION_COLOR: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
-  latest: 'success',
-  'patch-behind': 'warning',
-  'minor-behind': 'warning',
-  'major-behind': 'error',
-}
-
-type Tab = 'skills' | 'agents' | 'commands' | 'changes'
+const CONTENT_TABS: ProjectContentType[] = ['skills', 'agents', 'commands', 'changes']
 
 export default function ProjectDetail() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const location = useLocation()
+  const navigate = useNavigate()
   const [detail, setDetail] = useState<ProjectDetailType | null>(null)
-
-  const [target, setTarget] = useState('')
-  const [tab, setTab] = useState<Tab>('skills')
-  const [changeStatus, setChangeStatus] = useState<ChangeStatus>(createProjectDetailResetState().changeStatus)
+  const [tab, setTab] = useState<ProjectContentType>('skills')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [updating, setUpdating] = useState(false)
-  const [menuAnchorEl, setMenuAnchorEl] = useState<HTMLElement | null>(null)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [deleting, setDeleting] = useState(false)
-  const loadGuardRef = useRef(createLatestRequestGuard())
-  const navigationProjectInfo = (
-    typeof location.state === 'object' &&
-    location.state !== null &&
-    'projectInfo' in location.state
-  )
-    ? (location.state as { projectInfo?: ProjectInfo }).projectInfo
-    : undefined
-  const selectedProjectInfo = navigationProjectInfo?.id === id ? navigationProjectInfo : undefined
+  const [descriptionDraft, setDescriptionDraft] = useState('')
+  const [savingDescription, setSavingDescription] = useState(false)
+  const [deletingProject, setDeletingProject] = useState(false)
 
-  const tableSx = {
-    border: 0,
-    '& .MuiDataGrid-columnHeader': {
-      alignItems: 'center',
-    },
-    '& .MuiDataGrid-cell': {
-      display: 'flex',
-      alignItems: 'center',
-      py: 0.75,
-    },
-    '& .MuiDataGrid-cell .MuiTypography-root': {
-      lineHeight: 1.4,
-    },
-  } as const
-
-  const load = useCallback(async () => {
+  const loadDetail = useCallback(async () => {
     if (!id) return
-    const requestId = loadGuardRef.current.begin()
-
+    setLoading(true)
     try {
-      setLoading(true)
+      const nextDetail = await api.projects.get(id)
+      setDetail(nextDetail)
+      setDescriptionDraft(nextDetail.info.description ?? '')
       setError(null)
-      const [data, changes] = await Promise.all([
-        api.projects.get(id),
-        api.changes.list(id).catch(() => null),
-      ])
-      if (!loadGuardRef.current.isCurrent(requestId)) return
-
-      setDetail(data)
-      const fallbackChangeStatus = data.info.changeStatus.total > 0
-        ? data.info.changeStatus
-        : (selectedProjectInfo?.changeStatus ?? data.info.changeStatus)
-      setChangeStatus(resolveProjectDetailChangeStatus(
-        changes ? buildChangeSummary(changes) : null,
-        fallbackChangeStatus,
-      ))
-    } catch (e) {
-      if (!loadGuardRef.current.isCurrent(requestId)) return
-      setError(e instanceof Error ? e.message : 'Failed to load')
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load project')
     } finally {
-      if (!loadGuardRef.current.isCurrent(requestId)) return
       setLoading(false)
     }
-  }, [id, selectedProjectInfo])
+  }, [id])
 
-  const handleUpdate = useCallback(async () => {
+  useEffect(() => { void loadDetail() }, [loadDetail])
+
+  const activeFiles = useMemo(() => {
+    if (!detail || tab === 'changes') return []
+    return flattenTargetFileItems(detail.targets, tab)
+  }, [detail, tab])
+
+  const descriptionChanged = (detail?.info.description ?? '') !== descriptionDraft.trim()
+
+  const handleSaveDescription = async () => {
     if (!id) return
-    setUpdating(true)
+    setSavingDescription(true)
     try {
-      await api.projects.update(id)
-      await load()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Update failed')
+      await api.projects.updateMeta(id, { description: descriptionDraft })
+      await loadDetail()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '프로젝트 설명 저장 실패')
     } finally {
-      setUpdating(false)
+      setSavingDescription(false)
     }
-  }, [id, load])
+  }
 
-  useEffect(() => { void load() }, [load])
-
-  useEffect(() => {
-    const reset = createProjectDetailResetState()
-    setDetail(null)
-    setLoading(true)
-    setError(null)
-    setTab(reset.tab)
-    setTarget(reset.target)
-    setChangeStatus(selectedProjectInfo?.changeStatus ?? reset.changeStatus)
-  }, [id, selectedProjectInfo])
-
-  const targets = detail?.targets ?? []
-  useEffect(() => {
-    if (!targets.length) {
-      if (target !== '') setTarget('')
-      return
-    }
-    if (!target || !targets.some(source => source.target === target)) {
-      setTarget(targets[0].target)
-    }
-  }, [target, targets])
-
-  const handleDeleteProject = useCallback(async () => {
-    if (!id) return
-    setDeleting(true)
+  const handleDeleteProject = async () => {
+    if (!id || !detail) return
+    if (!confirm(`"${detail.info.name}" 프로젝트를 registry에서 제거할까요? 실제 폴더는 삭제되지 않습니다.`)) return
+    setDeletingProject(true)
     try {
       await api.projects.remove(id)
       navigate('/')
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '삭제 실패')
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : '프로젝트 삭제 실패')
     } finally {
-      setDeleting(false)
-      setDeleteDialogOpen(false)
+      setDeletingProject(false)
     }
-  }, [id, navigate])
+  }
+
+  const handleGoBack = () => {
+    if (shouldUseHistoryBack(window.history.length, location.key)) {
+      navigate(-1)
+      return
+    }
+    navigate('/')
+  }
 
   if (loading) {
     return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', mt: 8 }}>
+      <Box sx={{ display: 'flex', justifyContent: 'center', py: 8 }}>
         <CircularProgress />
       </Box>
     )
   }
 
-  if (error) {
-    return (
-      <Box sx={{ p: 3 }}>
-        <Alert severity="error">{error}</Alert>
-      </Box>
-    )
+  if (!detail) {
+    return <Alert severity="error">프로젝트를 찾을 수 없습니다.</Alert>
   }
 
-  if (!detail) return null
-
-  const { info } = detail
-  const totalChangeCount = changeStatus.total
-  const versionColor = VERSION_COLOR[info.versionStatus] ?? 'default'
-  const projectVersionLabel = `v${info.projectVersion ?? '0.0.0'}`
-  const isLatestProjectVersion = info.latestReleaseVersion === projectVersionLabel
-  const currentTarget = targets.find(source => source.target === target) ?? targets[0]
-  const currentFiles = currentTarget?.files ?? { skills: [], agents: [], commands: [] }
-  const workspaceLabels = targets.map(source => source.label)
-
-  const fileList = tab === 'skills' ? currentFiles.skills
-    : tab === 'agents' ? currentFiles.agents
-    : tab === 'commands' ? currentFiles.commands
-    : []
-
-  const columns: GridColDef[] = [
-    {
-      field: 'name',
-      headerName: '이름',
-      flex: 1,
-      renderCell: params => (
-        <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-          {params.value as string}
-        </Typography>
-      ),
-    },
-    {
-      field: 'actions',
-      headerName: '',
-      width: 60,
-      sortable: false,
-      renderCell: params => (
-        <IconButton
-          size="small"
-          onClick={() => {
-            if (!currentTarget) return
-            navigate(`/projects/${id}/files/${encodeURIComponent(currentTarget.target)}/${tab}/${encodeURIComponent(params.row.name as string)}`)
-          }}
-        >
-          <OpenInNewIcon fontSize="small" />
-        </IconButton>
-      ),
-    },
-  ]
-
-  const rows = fileList.map(name => ({ id: name, name }))
-
   return (
-    <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Stack spacing={2.5}>
-        <Box sx={{ display: 'flex', alignItems: { xs: 'stretch', md: 'flex-start' }, flexDirection: { xs: 'column', md: 'row' }, gap: 2 }}>
-          <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="overline" color="text.secondary">
-              Project detail
-            </Typography>
-            <Stack
-              direction={{ xs: 'column', sm: 'row' }}
-              spacing={1}
-              useFlexGap
-              alignItems={{ xs: 'flex-start', sm: 'center' }}
-              sx={{ mt: 0.25 }}
+    <Stack spacing={2.5}>
+      <Paper variant="outlined" sx={{ p: { xs: 2, md: 3 }, borderRadius: 1 }}>
+        <Stack spacing={2}>
+          <Stack direction={{ xs: 'column', lg: 'row' }} spacing={2} justifyContent="space-between">
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Typography variant="overline" color="text.secondary">
+                Project detail
+              </Typography>
+              <Typography variant="h4" sx={{ mt: 0.5 }}>{detail.info.name}</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                {detail.info.path}
+              </Typography>
+            </Box>
+
+            <ButtonGroup
+              variant="outlined"
+              size="medium"
+              color="inherit"
+              sx={{
+                alignSelf: { xs: 'stretch', lg: 'flex-start' },
+                '& .MuiButton-root': {
+                  minHeight: 40,
+                  px: 1.5,
+                  justifyContent: 'flex-start',
+                },
+              }}
             >
-              <Typography variant="h4">{info.name}</Typography>
-              <Chip
-                label={`ygg cli v${info.yggVersion ?? '?'}`}
-                color={versionColor}
-                size="small"
-                title="ygg CLI"
-              />
-              <Chip
-                label={projectVersionLabel}
-                color="default"
-                size="small"
-                title="프로젝트 버전"
-              />
-              {isLatestProjectVersion && (
-                <Chip
-                  label="latest"
-                  color="success"
-                  size="small"
-                  title="최신 릴리즈"
-                />
-              )}
-            </Stack>
-            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: 'monospace', fontSize: '0.75rem', mt: 0.5 }}>
-              {info.path}
-            </Typography>
-          </Box>
-          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap alignItems="center">
-            {info.versionStatus !== 'latest' && (
-              <Typography variant="caption" color="text.secondary">→ v{info.currentVersion}</Typography>
-            )}
-            <Button
-              variant={info.versionStatus !== 'latest' ? 'contained' : 'outlined'}
-              size="small"
-              onClick={() => void handleUpdate()}
-              disabled={updating}
-              sx={{ borderRadius: 1 }}
-            >
-              {updating ? '업데이트 중...' : '업데이트'}
-            </Button>
-            <IconButton
-              aria-label="project actions"
-              onClick={event => setMenuAnchorEl(event.currentTarget)}
-            >
-              <MoreVertIcon />
-            </IconButton>
+              <Button onClick={handleGoBack} startIcon={<ArrowBackRoundedIcon />}>
+                뒤로 가기
+              </Button>
+              <Button onClick={() => navigate('/')} startIcon={<AppsRoundedIcon />}>
+                프로젝트 목록
+              </Button>
+              <Button color="error" onClick={() => void handleDeleteProject()} disabled={deletingProject} startIcon={<DeleteOutlineRoundedIcon />}>
+                {deletingProject ? '삭제 중...' : '프로젝트 삭제'}
+              </Button>
+            </ButtonGroup>
           </Stack>
+
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            <Chip label={`category ${detail.info.category}`} variant="outlined" />
+            <Chip label={`project v${detail.info.projectVersion}`} />
+            <Chip label={`ygg v${detail.info.yggVersion}`} variant="outlined" />
+            {detail.info.latestReleaseVersion && (
+              <Chip label={`latest ${detail.info.latestReleaseVersion}`} variant="outlined" />
+            )}
+          </Stack>
+
+          <Stack spacing={1}>
+            <Typography variant="subtitle2">프로젝트 설명</Typography>
+            <TextField
+              multiline
+              minRows={3}
+              value={descriptionDraft}
+              onChange={event => setDescriptionDraft(event.target.value)}
+              placeholder="이 프로젝트가 무엇을 위한 프로젝트인지 설명을 적어주세요."
+              fullWidth
+            />
+            <Stack direction="row" spacing={1} justifyContent="space-between" alignItems="center">
+              <Typography variant="body2" color="text.secondary">
+                카드 설명은 이 값과 항상 동일하게 표시됩니다.
+              </Typography>
+              <Stack direction="row" spacing={1}>
+                <Button
+                  size="small"
+                  variant="text"
+                  disabled={!descriptionChanged}
+                  onClick={() => setDescriptionDraft(detail.info.description ?? '')}
+                >
+                  되돌리기
+                </Button>
+                <Button
+                  size="small"
+                  variant="contained"
+                  disabled={!descriptionChanged || savingDescription}
+                  onClick={() => void handleSaveDescription()}
+                >
+                  {savingDescription ? '저장 중...' : '설명 저장'}
+                </Button>
+              </Stack>
+            </Stack>
+          </Stack>
+
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+            {CONTENT_TABS.map(type => (
+              <Chip
+                key={type}
+                label={`${type} ${detail.info.contentSummary[type]}`}
+                size="small"
+                variant={tab === type ? 'filled' : 'outlined'}
+              />
+            ))}
+          </Stack>
+        </Stack>
+      </Paper>
+
+      {error && <Alert severity="error">{error}</Alert>}
+
+      <Paper variant="outlined" sx={{ borderRadius: 1, overflow: 'hidden' }}>
+        <Box sx={{ px: 2, pt: 2 }}>
+          <Typography variant="h6">Project content</Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+            실제 프로젝트 파일과 ygg changes 인덱스를 기준으로 내용을 읽습니다.
+          </Typography>
         </Box>
 
-        {error && <Alert severity="error">{error}</Alert>}
+        <Tabs value={tab} onChange={(_, value: ProjectContentType) => setTab(value)} sx={{ px: 1.5, mt: 1 }}>
+          {CONTENT_TABS.map(type => (
+            <Tab
+              key={type}
+              value={type}
+              label={`${type} (${detail.info.contentSummary[type]})`}
+            />
+          ))}
+        </Tabs>
 
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 1, height: '100%' }}>
-              <Typography variant="caption" color="text.secondary">Change summary</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                현재 진행 중인 작업과 완료 후 보관된 change 이력을 나눠서 보여줍니다.
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                <Chip label={`진행 중 ${changeStatus.inProgress}`} color="primary" size="small" />
-                <Chip label={`보관됨 ${changeStatus.done}`} variant="outlined" size="small" />
-                <Chip label={`전체 ${changeStatus.total}`} variant="outlined" size="small" />
-              </Stack>
-            </Paper>
-          </Grid>
+        <Divider />
 
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 1, height: '100%' }}>
-              <Typography variant="caption" color="text.secondary">Workspaces</Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
-                Claude Code, Codex 같은 환경별 문서 묶음입니다.
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 1.5 }}>
-                <Chip label={`${targets.length}개 연결`} color="default" size="small" />
-                {workspaceLabels.map(label => (
-                  <Chip key={label} label={label} variant="outlined" size="small" />
-                ))}
-              </Stack>
-            </Paper>
-          </Grid>
-        </Grid>
-
-        <Paper variant="outlined" sx={{ borderRadius: 1, p: 1.5 }}>
-          <Box sx={{ px: 1, pt: 0.5, pb: 1 }}>
-            <Typography variant="subtitle1">
-              Workspace files and change operations
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-              작업 환경별로 생성된 skills, agents, commands 파일과 change 작업을 확인합니다.
-            </Typography>
-          </Box>
-
-          {targets.length > 0 && (
-            <Tabs
-              value={currentTarget?.target ?? false}
-              onChange={(_, v: string) => setTarget(v)}
-              sx={{ borderBottom: 1, borderColor: 'divider', mb: 1.5 }}
-              variant="scrollable"
-              scrollButtons="auto"
-            >
-              {targets.map(source => (
-                <Tab
-                  key={source.target}
-                  label={`${source.label} (${source.files.skills.length + source.files.agents.length + source.files.commands.length})`}
-                  value={source.target}
-                />
-              ))}
-            </Tabs>
-          )}
-
-          <Tabs
-            value={tab}
-            onChange={(_, v: Tab) => setTab(v)}
-            sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
-          >
-            <Tab label={`스킬 (${currentFiles.skills.length})`} value="skills" />
-            <Tab label={`에이전트 (${currentFiles.agents.length})`} value="agents" />
-            <Tab label={`커맨드 (${currentFiles.commands.length})`} value="commands" />
-            <Tab label={`Changes (${totalChangeCount})`} value="changes" />
-          </Tabs>
-
+        <Box sx={{ p: 2 }}>
           {tab === 'changes' ? (
-            <Changes
-              projectId={id!}
-              initialSubTab="active"
-              onSummaryChange={setChangeStatus}
-            />
+            <Changes projectId={id ?? ''} />
+          ) : activeFiles.length === 0 ? (
+            <Paper variant="outlined" sx={{ p: 3, borderRadius: 1 }}>
+              <Typography variant="subtitle1">아직 {tab} 파일이 없습니다.</Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                현재 프로젝트 타깃에서 읽을 수 있는 {tab} 파일이 없었습니다.
+              </Typography>
+            </Paper>
           ) : (
-            <DataGrid
-              rows={rows}
-              columns={columns}
-              autoHeight
-              disableRowSelectionOnClick
-              hideFooter={rows.length <= 100}
-              sx={tableSx}
-            />
+            <Stack spacing={1.5}>
+              {activeFiles.map(file => (
+                <Paper key={file.id} variant="outlined" sx={{ p: 2, borderRadius: 1 }}>
+                  <Stack direction={{ xs: 'column', md: 'row' }} spacing={1} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+                    <Box>
+                      <Typography variant="h6">{file.name}</Typography>
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                        <Chip size="small" label={file.targetLabel} variant="outlined" />
+                        <Chip size="small" label={file.type} variant="outlined" />
+                      </Stack>
+                    </Box>
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      onClick={() => navigate(
+                        `/projects/${id}/files/${encodeURIComponent(file.target)}/${file.type}/${encodeURIComponent(file.name)}`,
+                      )}
+                    >
+                      파일 열기
+                    </Button>
+                  </Stack>
+                </Paper>
+              ))}
+            </Stack>
           )}
-        </Paper>
-      </Stack>
-
-      <Menu
-        anchorEl={menuAnchorEl}
-        open={Boolean(menuAnchorEl)}
-        onClose={() => setMenuAnchorEl(null)}
-      >
-        <MenuItem
-          onClick={() => {
-            setMenuAnchorEl(null)
-            setDeleteDialogOpen(true)
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <DeleteOutlineIcon fontSize="small" sx={{ mr: 1 }} />
-          프로젝트 삭제
-        </MenuItem>
-      </Menu>
-
-      <Dialog open={deleteDialogOpen} onClose={() => !deleting && setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>프로젝트 삭제</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary">
-            이 작업은 dashboard registry에서만 프로젝트를 제거합니다. 실제 프로젝트 폴더와 파일은 삭제하지 않습니다.
-          </Typography>
-          <Typography variant="subtitle2" sx={{ mt: 2 }}>
-            {info.name}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
-            {info.path}
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>취소</Button>
-          <Button color="error" variant="contained" onClick={() => void handleDeleteProject()} disabled={deleting}>
-            {deleting ? '삭제 중...' : '삭제'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+        </Box>
+      </Paper>
+    </Stack>
   )
 }

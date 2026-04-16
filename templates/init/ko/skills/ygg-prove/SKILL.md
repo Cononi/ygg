@@ -9,7 +9,7 @@ allowed_tools:
 
 # ygg-prove — System Verification
 
-1. Run `bash .claude/scripts/ygg-prove.sh`
+1. Run `bash ygg/scripts/ygg-prove.sh`
 2. Display full test report
 3. Failures: explain each + fix commands
 4. All pass: confirm ready + list available `/ygg:*` commands

@@ -1,4 +1,15 @@
-import type { ProjectInfo, ProjectDetail, ProjectEntry, ChangesResponse, TopicDetailResponse, ChangeField } from '../types'
+import type {
+  ProjectInfo,
+  ProjectDetail,
+  ProjectEntry,
+  ChangesResponse,
+  TopicDetailResponse,
+  ChangeField,
+  PagedProjectContent,
+  ProjectContentEntry,
+  ProjectContentType,
+  ProjectListResponse,
+} from '../types'
 
 const BASE = '/api'
 
@@ -15,14 +26,47 @@ export const api = {
     fetch(`${BASE}/version`).then(r => json(r)),
 
   projects: {
-    list: (): Promise<{ projects: ProjectInfo[] }> =>
+    list: (): Promise<ProjectListResponse> =>
       fetch(`${BASE}/projects`).then(r => json(r)),
 
-    add: (path: string): Promise<{ project: ProjectEntry }> =>
+    add: (path: string, category?: string): Promise<{ project: ProjectEntry }> =>
       fetch(`${BASE}/projects`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path }),
+        body: JSON.stringify({ path, category }),
+      }).then(r => json(r)),
+
+    createCategory: (name: string): Promise<{ success: boolean; categories: string[] }> =>
+      fetch(`${BASE}/projects/categories`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }).then(r => json(r)),
+
+    renameCategory: (currentName: string, name: string): Promise<{ success: boolean; categories: string[] }> =>
+      fetch(`${BASE}/projects/categories/${encodeURIComponent(currentName)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }).then(r => json(r)),
+
+    deleteCategory: (name: string): Promise<{ success: boolean; categories: string[] }> =>
+      fetch(`${BASE}/projects/categories/${encodeURIComponent(name)}`, {
+        method: 'DELETE',
+      }).then(r => json(r)),
+
+    moveCategory: (id: string, category: string): Promise<{ project: ProjectEntry }> =>
+      fetch(`${BASE}/projects/${id}/category`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category }),
+      }).then(r => json(r)),
+
+    updateMeta: (id: string, payload: { description?: string }): Promise<{ project: ProjectEntry }> =>
+      fetch(`${BASE}/projects/${id}/meta`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       }).then(r => json(r)),
 
     remove: (id: string): Promise<{ success: boolean }> =>
@@ -33,6 +77,26 @@ export const api = {
 
     get: (id: string): Promise<ProjectDetail> =>
       fetch(`${BASE}/projects/${id}`).then(r => json(r)),
+  },
+
+  content: {
+    list: (id: string, type: ProjectContentType, page: number, pageSize: number): Promise<PagedProjectContent> =>
+      fetch(`${BASE}/projects/${id}/content?type=${encodeURIComponent(type)}&page=${page}&pageSize=${pageSize}`).then(r => json(r)),
+
+    create: (
+      id: string,
+      payload: { type: ProjectContentType; title: string; bodyMarkdown: string },
+    ): Promise<{ content: ProjectContentEntry }> =>
+      fetch(`${BASE}/projects/${id}/content`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }).then(r => json(r)),
+
+    remove: (id: string, contentId: string): Promise<{ success: boolean }> =>
+      fetch(`${BASE}/projects/${id}/content/${contentId}`, {
+        method: 'DELETE',
+      }).then(r => json(r)),
   },
 
   files: {

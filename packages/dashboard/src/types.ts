@@ -1,44 +1,82 @@
 export type VersionStatus = 'latest' | 'patch-behind' | 'minor-behind' | 'major-behind' | 'unknown'
+export type ProjectContentType = 'skills' | 'agents' | 'commands' | 'changes'
 
 export interface ProjectEntry {
   id: string
   path: string
-  addedAt: string
+  name: string
+  category: string
+  description?: string
+  createdAt: string
+  updatedAt: string
   yggVersion: string
 }
 
-export interface ChangeStatus {
-  total: number
-  inProgress: number
-  done: number
+export interface ProjectContentSummary {
+  skills: number
+  agents: number
+  commands: number
+  changes: number
 }
 
 export interface ProjectInfo extends ProjectEntry {
-  name: string
   currentVersion: string
   projectVersion: string
   versionStatus: VersionStatus
+  contentSummary: ProjectContentSummary
   latestReleaseVersion?: string
   latestReleaseDate?: string
-  skillCount: number
-  agentCount: number
-  commandCount: number
-  changeStatus: ChangeStatus
+  changeStatus: {
+    total: number
+    inProgress: number
+    done: number
+  }
+}
+
+export interface ProjectCategoryGroup {
+  category: string
+  projects: ProjectInfo[]
+}
+
+export interface ProjectListResponse {
+  categories: string[]
+  projects: ProjectInfo[]
+  groupedProjects: ProjectCategoryGroup[]
 }
 
 export interface ProjectDetail {
   info: ProjectInfo
-  targets: TargetFiles[]
+  targets: TargetFileSource[]
 }
 
-export interface TargetFiles {
+export interface TargetFileCollections {
+  skills: string[]
+  agents: string[]
+  commands: string[]
+}
+
+export interface TargetFileSource {
   target: string
   label: string
-  files: {
-    skills: string[]
-    agents: string[]
-    commands: string[]
-  }
+  files: TargetFileCollections
+}
+
+export interface ProjectContentEntry {
+  id: string
+  projectId: string
+  type: ProjectContentType
+  title: string
+  bodyMarkdown: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PagedProjectContent {
+  items: ProjectContentEntry[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
 }
 
 export interface ChangeEntry {
