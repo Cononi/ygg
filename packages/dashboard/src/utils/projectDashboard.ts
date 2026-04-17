@@ -1,5 +1,7 @@
 import type { ProjectCategoryGroup, ProjectContentType, TargetFileSource } from '../types'
 
+export const PROJECT_CARD_ACTION_ORDER = ['move', 'delete'] as const
+
 export interface TargetFileItem {
   id: string
   target: string

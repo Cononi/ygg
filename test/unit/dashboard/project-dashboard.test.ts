@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  PROJECT_CARD_ACTION_ORDER,
   buildCategoryProjectCounts,
   flattenTargetFileItems,
 } from '../../../packages/dashboard/src/utils/projectDashboard.js'
@@ -63,5 +64,9 @@ describe('project dashboard helpers', () => {
       home: 2,
       Platform: 1,
     })
+  })
+
+  it('keeps project card actions limited to move and delete in order', () => {
+    expect(PROJECT_CARD_ACTION_ORDER).toEqual(['move', 'delete'])
   })
 })

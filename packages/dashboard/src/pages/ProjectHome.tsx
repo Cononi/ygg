@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Box from '@mui/material/Box'
 import Paper from '@mui/material/Paper'
@@ -18,12 +18,12 @@ import Alert from '@mui/material/Alert'
 import Divider from '@mui/material/Divider'
 import IconButton from '@mui/material/IconButton'
 import Tooltip from '@mui/material/Tooltip'
-import LaunchRoundedIcon from '@mui/icons-material/LaunchRounded'
 import DriveFileMoveOutlinedIcon from '@mui/icons-material/DriveFileMoveOutlined'
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded'
 
 import { api } from '../api/client'
 import type { ProjectInfo, ProjectListResponse } from '../types'
+import { PROJECT_CARD_ACTION_ORDER } from '../utils/projectDashboard'
 
 const EMPTY_LIST: ProjectListResponse = {
   categories: [],
@@ -129,7 +129,7 @@ export default function ProjectHome() {
             </Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mt: 1, maxWidth: 880 }}>
               프로젝트 설명과 실제 skills, agents, commands, changes 현황을 카드에서 바로 확인하고,
-              카드를 눌러 상세 화면으로 이동해 바로 관리할 수 있습니다.
+              카드 본문으로 상세 화면에 진입하고 우측 액션으로 바로 관리할 수 있습니다.
             </Typography>
           </Box>
 
@@ -176,8 +176,33 @@ export default function ProjectHome() {
                   </Typography>
                 ) : (
                   <Grid container spacing={1.5}>
-                    {group.projects.map(project => (
-                      <Grid key={project.id} item xs={12} md={6} xl={4}>
+                    {group.projects.map(project => {
+                      const cardActions = PROJECT_CARD_ACTION_ORDER.map(action =>
+                        action === 'move'
+                          ? {
+                              key: action,
+                              title: '카테고리 이동',
+                              color: undefined as 'error' | undefined,
+                              icon: <DriveFileMoveOutlinedIcon fontSize="small" />,
+                              onClick: (event: MouseEvent<HTMLButtonElement>) => {
+                                event.stopPropagation()
+                                openMoveDialog(project)
+                              },
+                            }
+                          : {
+                              key: action,
+                              title: '프로젝트 삭제',
+                              color: 'error' as const,
+                              icon: <DeleteOutlineRoundedIcon fontSize="small" />,
+                              onClick: (event: MouseEvent<HTMLButtonElement>) => {
+                                event.stopPropagation()
+                                void handleDeleteProject(project)
+                              },
+                            },
+                      )
+
+                      return (
+                        <Grid key={project.id} item xs={12} md={6} xl={4}>
                         <Paper
                           variant="outlined"
                           sx={{
@@ -195,42 +220,6 @@ export default function ProjectHome() {
                         >
                           <Stack spacing={1.5} sx={{ height: '100%' }}>
                             <Stack direction="row" spacing={1.5} alignItems="flex-start" justifyContent="space-between">
-                              <Stack direction="row" spacing={0.25} alignItems="center" sx={{ alignSelf: 'flex-start', ml: -0.5 }}>
-                                <Tooltip title="디테일">
-                                  <IconButton
-                                    size="small"
-                                    onClick={event => {
-                                      event.stopPropagation()
-                                      navigate(`/projects/${project.id}`)
-                                    }}
-                                  >
-                                    <LaunchRoundedIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="카테고리 이동">
-                                  <IconButton
-                                    size="small"
-                                    onClick={event => {
-                                      event.stopPropagation()
-                                      openMoveDialog(project)
-                                    }}
-                                  >
-                                    <DriveFileMoveOutlinedIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="프로젝트 삭제">
-                                  <IconButton
-                                    size="small"
-                                    color="error"
-                                    onClick={event => {
-                                      event.stopPropagation()
-                                      void handleDeleteProject(project)
-                                    }}
-                                  >
-                                    <DeleteOutlineRoundedIcon fontSize="small" />
-                                  </IconButton>
-                                </Tooltip>
-                              </Stack>
                               <Box sx={{ minWidth: 0, flex: 1 }}>
                                 <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
                                   {project.name}
@@ -239,6 +228,25 @@ export default function ProjectHome() {
                                   {project.path}
                                 </Typography>
                               </Box>
+                              <Stack
+                                direction="row"
+                                spacing={0.25}
+                                alignItems="center"
+                                sx={{
+                                  alignSelf: 'flex-start',
+                                  justifyContent: 'flex-end',
+                                  mr: -0.5,
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {cardActions.map(action => (
+                                  <Tooltip key={action.key} title={action.title}>
+                                    <IconButton size="small" color={action.color} onClick={action.onClick}>
+                                      {action.icon}
+                                    </IconButton>
+                                  </Tooltip>
+                                ))}
+                              </Stack>
                             </Stack>
 
                             <Typography variant="body2" color="text.secondary" sx={{ minHeight: 44 }}>
@@ -254,8 +262,9 @@ export default function ProjectHome() {
                             <Divider sx={{ mt: 'auto' }} />
                           </Stack>
                         </Paper>
-                      </Grid>
-                    ))}
+                        </Grid>
+                      )
+                    })}
                   </Grid>
                 )}
               </Stack>

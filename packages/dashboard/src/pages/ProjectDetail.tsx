@@ -211,7 +211,9 @@ export default function ProjectDetail() {
         <Box sx={{ px: 2, pt: 2 }}>
           <Typography variant="h6">Project content</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            실제 프로젝트 파일과 ygg changes 인덱스를 기준으로 내용을 읽습니다.
+            {tab === 'changes'
+              ? 'changes는 최신 흐름을 빠르게 읽을 수 있도록 타임라인형 이력 뷰로 표시합니다.'
+              : '실제 프로젝트 파일과 ygg changes 인덱스를 기준으로 내용을 읽습니다.'}
           </Typography>
         </Box>
 

@@ -9,13 +9,14 @@ import Tab from '@mui/material/Tab'
 import Chip from '@mui/material/Chip'
 import Stack from '@mui/material/Stack'
 import IconButton from '@mui/material/IconButton'
+import Button from '@mui/material/Button'
 import MenuItem from '@mui/material/MenuItem'
 import Select from '@mui/material/Select'
 import CircularProgress from '@mui/material/CircularProgress'
-import { DataGrid, type GridColDef, type GridRenderCellParams } from '@mui/x-data-grid'
 import ArchiveIcon from '@mui/icons-material/Archive'
 import DeleteIcon from '@mui/icons-material/Delete'
 import UnarchiveIcon from '@mui/icons-material/Unarchive'
+import ArrowOutwardRoundedIcon from '@mui/icons-material/ArrowOutwardRounded'
 import { api } from '../api/client'
 import { ARCHIVE_STATUS_LABEL, YGG_STAGES } from '../types'
 import type { ChangeEntry } from '../types'
@@ -56,6 +57,172 @@ function formatVersionLabel(version?: string): string {
   return raw.startsWith('v') ? raw : `v${raw}`
 }
 
+function TimelineItem({
+  entry,
+  isArchive,
+  isEditingStage,
+  onOpen,
+  onStatusToggle,
+  onStageEdit,
+  onStageChange,
+  onArchive,
+  onRestore,
+  onDelete,
+}: {
+  entry: ChangeEntry
+  isArchive: boolean
+  isEditingStage: boolean
+  onOpen: () => void
+  onStatusToggle: (entry: ChangeEntry) => void
+  onStageEdit: (topic: string | null) => void
+  onStageChange: (topic: string, stage: string) => void
+  onArchive: (topic: string) => void
+  onRestore: (topic: string) => void
+  onDelete: (topic: string, isArchive: boolean) => void
+}) {
+  const status = entry.status || '🔄 진행중'
+  const isDone = status.includes('완료')
+  const timelineColor = isArchive ? 'success.light' : isDone ? 'success.main' : 'warning.main'
+
+  return (
+    <Box
+      sx={{
+        position: 'relative',
+        pl: 4,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          left: 12,
+          top: 10,
+          bottom: -20,
+          width: 2,
+          bgcolor: 'divider',
+        },
+        '&:last-of-type::before': {
+          display: 'none',
+        },
+      }}
+    >
+      <Box
+        sx={{
+          position: 'absolute',
+          left: 6,
+          top: 8,
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          bgcolor: timelineColor,
+          border: theme => `2px solid ${theme.palette.background.paper}`,
+          boxShadow: theme => `0 0 0 2px ${theme.palette.divider}`,
+        }}
+      />
+
+      <Paper variant="outlined" sx={{ p: { xs: 1.5, md: 2 }, borderRadius: 1.5 }}>
+        <Stack spacing={1.5}>
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'flex-start' }}>
+            <Box sx={{ minWidth: 0, flex: 1 }}>
+              <Button
+                variant="text"
+                color="inherit"
+                endIcon={<ArrowOutwardRoundedIcon fontSize="small" />}
+                onClick={onOpen}
+                sx={{
+                  px: 0,
+                  minWidth: 0,
+                  textTransform: 'none',
+                  justifyContent: 'flex-start',
+                  fontFamily: 'monospace',
+                  fontSize: '1rem',
+                  fontWeight: 700,
+                }}
+              >
+                {entry.topic}
+              </Button>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.75 }}>
+                {entry.description || (isArchive ? '완료된 change 설명이 없습니다.' : '진행 중인 change 설명이 없습니다.')}
+              </Typography>
+            </Box>
+
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap" justifyContent={{ xs: 'flex-start', md: 'flex-end' }}>
+              {!isArchive && (
+                <Chip
+                  label={status}
+                  color={isDone ? 'success' : 'warning'}
+                  size="small"
+                  onClick={() => onStatusToggle(entry)}
+                  sx={{ cursor: 'pointer' }}
+                />
+              )}
+              {isArchive && <Chip label={ARCHIVE_STATUS_LABEL} color="success" size="small" />}
+
+              {isArchive ? (
+                <Chip
+                  label={(entry.type ?? 'fix')}
+                  size="small"
+                  variant="outlined"
+                  sx={{ fontFamily: 'monospace' }}
+                />
+              ) : isEditingStage ? (
+                <Select
+                  autoFocus
+                  size="small"
+                  value={entry.stage || '—'}
+                  onChange={event => onStageChange(entry.topic, event.target.value)}
+                  onBlur={() => onStageEdit(null)}
+                  sx={{ minWidth: 108, fontSize: '0.8rem' }}
+                >
+                  {YGG_STAGES.map(stage => (
+                    <MenuItem key={stage} value={stage}>{stage}</MenuItem>
+                  ))}
+                </Select>
+              ) : (
+                <Chip
+                  label={entry.stage || '—'}
+                  size="small"
+                  variant="outlined"
+                  onClick={() => onStageEdit(entry.topic)}
+                  sx={{ cursor: 'pointer', fontFamily: 'monospace' }}
+                />
+              )}
+
+              {entry.yggPoint && entry.yggPoint !== '-' && (
+                <Chip label={`YGG ${entry.yggPoint}`} size="small" variant="outlined" />
+              )}
+              {isArchive && (
+                <Chip label={formatVersionLabel(entry.version)} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} />
+              )}
+              {isArchive && entry.latest === 'latest' && <Chip label="latest" size="small" color="primary" />}
+            </Stack>
+          </Stack>
+
+          <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }}>
+            <Stack direction="row" spacing={0.75} useFlexGap flexWrap="wrap">
+              <Chip label={isArchive ? 'Completed history' : 'Active topic'} size="small" variant="outlined" />
+              <Chip label={formatDateLabel(entry.date)} size="small" variant="outlined" sx={{ fontFamily: 'monospace' }} />
+              <Chip label={getDaysSince(entry.date)} size="small" />
+            </Stack>
+
+            <Stack direction="row" spacing={0.5}>
+              {isArchive ? (
+                <IconButton size="small" title="Active로 이동" onClick={() => onRestore(entry.topic)}>
+                  <UnarchiveIcon fontSize="small" />
+                </IconButton>
+              ) : (
+                <IconButton size="small" title="Archive로 이동" onClick={() => onArchive(entry.topic)}>
+                  <ArchiveIcon fontSize="small" />
+                </IconButton>
+              )}
+              <IconButton size="small" color="error" title="삭제" onClick={() => onDelete(entry.topic, isArchive)}>
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Stack>
+          </Stack>
+        </Stack>
+      </Paper>
+    </Box>
+  )
+}
+
 export default function Changes({ projectId, initialSubTab = 'active', onSummaryChange }: ChangesProps) {
   const [topics, setTopics] = useState<ChangeEntry[]>([])
   const [archiveTopics, setArchiveTopics] = useState<ChangeEntry[]>([])
@@ -64,21 +231,6 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
   const [editingStage, setEditingStage] = useState<string | null>(null)
   const navigate = useNavigate()
   const loadGuardRef = useRef(createLatestRequestGuard())
-
-  const tableSx = {
-    border: 0,
-    '& .MuiDataGrid-columnHeader': {
-      alignItems: 'center',
-    },
-    '& .MuiDataGrid-cell': {
-      display: 'flex',
-      alignItems: 'center',
-      py: 0.75,
-    },
-    '& .MuiDataGrid-cell .MuiTypography-root': {
-      lineHeight: 1.4,
-    },
-  } as const
 
   const buildTopicState = (entry: ChangeEntry, nextSubTab: SubTab) => ({
     changeEntry: entry,
@@ -163,235 +315,6 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
     }
   }
 
-  const activeColumns: GridColDef[] = [
-    {
-      field: 'topic',
-      headerName: '토픽',
-      flex: 1.5,
-      renderCell: (params: GridRenderCellParams) => (
-        <Typography
-          variant="body2"
-          sx={{ cursor: 'pointer', color: 'primary.main', fontFamily: 'monospace' }}
-          onClick={() => navigate(`/projects/${projectId}/changes/${params.value as string}`, {
-            state: buildTopicState(params.row as ChangeEntry, 'active'),
-          })}
-        >
-          {params.value as string}
-        </Typography>
-      ),
-    },
-    {
-      field: 'status',
-      headerName: '상태',
-      width: 130,
-      renderCell: (params: GridRenderCellParams) => {
-        const status = (params.value as string) || '🔄 진행중'
-        const isDone = status.includes('완료')
-        return (
-          <Chip
-            label={status}
-            color={isDone ? 'success' : 'warning'}
-            size="small"
-            onClick={() => void handleStatusToggle(params.row.topic as string, status)}
-            sx={{ cursor: 'pointer' }}
-          />
-        )
-      },
-    },
-    {
-      field: 'stage',
-      headerName: '단계',
-      width: 140,
-      renderCell: (params: GridRenderCellParams) => {
-        const topic = params.row.topic as string
-        if (editingStage === topic) {
-          return (
-            <Select
-              autoFocus
-              size="small"
-              defaultValue={params.value as string || '—'}
-              onChange={e => void handleStageChange(topic, e.target.value)}
-              onBlur={() => setEditingStage(null)}
-              sx={{ fontSize: '0.8rem' }}
-            >
-              {YGG_STAGES.map(s => (
-                <MenuItem key={s} value={s}>{s}</MenuItem>
-              ))}
-            </Select>
-          )
-        }
-        return (
-          <Chip
-            label={params.value as string || '—'}
-            size="small"
-            variant="outlined"
-            onClick={() => setEditingStage(topic)}
-            sx={{ cursor: 'pointer', fontFamily: 'monospace' }}
-          />
-        )
-      },
-    },
-    {
-      field: 'yggPoint',
-      headerName: 'YGG Point',
-      width: 110,
-    },
-    {
-      field: 'description',
-      headerName: '설명',
-      flex: 2,
-      renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', minHeight: '100%' }}>
-          {params.value as string}
-        </Typography>
-      ),
-    },
-    {
-      field: 'date',
-      headerName: '마지막 날짜',
-      width: 210,
-      renderCell: (params: GridRenderCellParams) => (
-        <Stack spacing={0.25} sx={{ py: 0.25, justifyContent: 'center' }}>
-          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-            {formatDateLabel(params.value as string)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {getDaysSince(params.value as string)}
-          </Typography>
-        </Stack>
-      ),
-    },
-    {
-      field: 'actions',
-      headerName: '액션',
-      width: 90,
-      sortable: false,
-      renderCell: (params: GridRenderCellParams) => (
-        <Box>
-          <IconButton
-            size="small"
-            title="Archive로 이동"
-            onClick={() => void handleArchive(params.row.topic as string)}
-          >
-            <ArchiveIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            title="삭제"
-            onClick={() => void handleDelete(params.row.topic as string, false)}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      ),
-    },
-  ]
-
-  const archiveColumns: GridColDef[] = [
-    {
-      field: 'topic',
-      headerName: '토픽',
-      flex: 1,
-      renderCell: (params: GridRenderCellParams) => (
-        <Typography
-          variant="body2"
-          sx={{ cursor: 'pointer', color: 'primary.main', fontFamily: 'monospace' }}
-          onClick={() => navigate(`/projects/${projectId}/changes/archive/${params.value as string}`, {
-            state: buildTopicState(params.row as ChangeEntry, 'archive'),
-          })}
-        >
-          {params.value as string}
-        </Typography>
-      ),
-    },
-    {
-      field: 'statusLabel',
-      headerName: '상태',
-      width: 150,
-      sortable: false,
-      renderCell: () => (
-        <Chip label={ARCHIVE_STATUS_LABEL} color="success" size="small" />
-      ),
-    },
-    {
-      field: 'description',
-      headerName: '설명',
-      flex: 2,
-      renderCell: (params: GridRenderCellParams) => (
-        <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', minHeight: '100%' }}>
-          {params.value as string}
-        </Typography>
-      ),
-    },
-    {
-      field: 'type',
-      headerName: '유형',
-      width: 110,
-      renderCell: (params: GridRenderCellParams) => (
-        <Chip
-          label={(params.value as string | undefined) ?? 'fix'}
-          size="small"
-          variant="outlined"
-          sx={{ fontFamily: 'monospace' }}
-        />
-      ),
-    },
-    {
-      field: 'version',
-      headerName: '버전',
-      width: 190,
-      renderCell: (params: GridRenderCellParams) => (
-        <Stack direction="row" spacing={0.75} useFlexGap alignItems="center">
-          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-            {formatVersionLabel(params.value as string | undefined)}
-          </Typography>
-          {params.row.latest === 'latest' && <Chip label="latest" size="small" color="primary" />}
-        </Stack>
-      ),
-    },
-    {
-      field: 'date',
-      headerName: '완료 날짜',
-      width: 210,
-      renderCell: (params: GridRenderCellParams) => (
-        <Stack spacing={0.25} sx={{ py: 0.25, justifyContent: 'center' }}>
-          <Typography variant="body2" sx={{ fontFamily: 'monospace' }}>
-            {formatDateLabel(params.value as string)}
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            {getDaysSince(params.value as string)}
-          </Typography>
-        </Stack>
-      ),
-    },
-    {
-      field: 'actions',
-      headerName: '액션',
-      width: 110,
-      sortable: false,
-      renderCell: (params: GridRenderCellParams) => (
-        <Box>
-          <IconButton
-            size="small"
-            title="Active로 이동"
-            onClick={() => void handleRestore(params.row.topic as string)}
-          >
-            <UnarchiveIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            color="error"
-            title="삭제"
-            onClick={() => void handleDelete(params.row.topic as string, true)}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      ),
-    },
-  ]
-
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', mt: 4 }}>
@@ -443,14 +366,28 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
           snapshot.activeEmpty
             ? <Typography color="text.secondary" sx={{ mt: 2 }}>진행 중인 change가 없습니다.</Typography>
             : (
-              <DataGrid
-                rows={snapshot.activeRows}
-                columns={activeColumns}
-                autoHeight
-                disableRowSelectionOnClick
-                hideFooter={snapshot.activeRows.length <= 100}
-                sx={tableSx}
-              />
+              <Stack spacing={2}>
+                <Typography variant="body2" color="text.secondary">
+                  활성 change를 시간 흐름대로 읽고, 각 항목 안에서 상태와 단계를 바로 조정할 수 있습니다.
+                </Typography>
+                {snapshot.activeRows.map(entry => (
+                  <TimelineItem
+                    key={entry.id}
+                    entry={entry}
+                    isArchive={false}
+                    isEditingStage={editingStage === entry.topic}
+                    onOpen={() => navigate(`/projects/${projectId}/changes/${entry.topic}`, {
+                      state: buildTopicState(entry, 'active'),
+                    })}
+                    onStatusToggle={nextEntry => void handleStatusToggle(nextEntry.topic, nextEntry.status || '🔄 진행중')}
+                    onStageEdit={setEditingStage}
+                    onStageChange={(topic, stage) => void handleStageChange(topic, stage)}
+                    onArchive={topic => void handleArchive(topic)}
+                    onRestore={() => undefined}
+                    onDelete={(topic, activeArchive) => void handleDelete(topic, activeArchive)}
+                  />
+                ))}
+              </Stack>
             )
         )}
 
@@ -460,16 +397,25 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
             : (
               <Stack spacing={1.5}>
                 <Typography variant="body2" color="text.secondary">
-                  공용 archive 경로를 통해 완료 처리된 항목입니다. 현재 archive 메타데이터의 버전, latest, 날짜 값을 기준으로 archived 이력을 표시합니다.
+                  공용 archive 경로를 통해 완료 처리된 항목입니다. 버전, latest, 날짜 메타데이터를 기준으로 릴리즈 흐름을 읽을 수 있습니다.
                 </Typography>
-                <DataGrid
-                  rows={snapshot.archiveRows}
-                  columns={archiveColumns}
-                  autoHeight
-                  disableRowSelectionOnClick
-                  hideFooter={snapshot.archiveRows.length <= 100}
-                  sx={tableSx}
-                />
+                {snapshot.archiveRows.map(entry => (
+                  <TimelineItem
+                    key={entry.id}
+                    entry={entry}
+                    isArchive
+                    isEditingStage={false}
+                    onOpen={() => navigate(`/projects/${projectId}/changes/archive/${entry.topic}`, {
+                      state: buildTopicState(entry, 'archive'),
+                    })}
+                    onStatusToggle={() => undefined}
+                    onStageEdit={() => undefined}
+                    onStageChange={() => undefined}
+                    onArchive={() => undefined}
+                    onRestore={topic => void handleRestore(topic)}
+                    onDelete={(topic, activeArchive) => void handleDelete(topic, activeArchive)}
+                  />
+                ))}
               </Stack>
             )
         )}
