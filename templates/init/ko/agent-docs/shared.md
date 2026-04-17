@@ -11,6 +11,13 @@
 5. 작은 단위로 수정하고, 이미 존재하는 코드 스타일과 구조를 따릅니다.
 6. QA가 성공하면 해당 활성 토픽은 최종 완료로 간주하며 즉시 `ygg/change/archive/`로 이동해야 합니다. 어떤 AI 워크플로우에서도 QA 통과 토픽을 active에 남겨두면 안 됩니다.
 
+## Harness Model
+
+- 장시간 작업의 시스템 오브 레코드는 `ygg/change/<topic>/` 문서입니다.
+- `proposal.md`, `design.md`, `specs/`, `tasks.md`, 검증 증거를 에이전트 간 파일 기반 handoff 지점으로 사용합니다.
+- 대상별 런타임 지침은 분리합니다: Claude는 `CLAUDE.md` + `.claude/`, Codex는 `AGENTS.md` + `.codex/`를 사용합니다.
+- ygg 자체를 수정할 때는 두 대상의 템플릿을 모두 편집할 수 있지만, 생성 문서 안에서 런타임 지침을 섞으면 안 됩니다.
+
 ## 표준 흐름
 
 1. `proposal.md`에 변경 목적과 범위를 정리
@@ -32,4 +39,6 @@
 - 활성 토픽: `ygg/change/<topic>/`
 - 검증 스크립트: `bash ygg/scripts/ygg-prove.sh`
 
-`.claude/` 디렉토리가 있으면 Claude용 slash command, skills, hooks를 그대로 사용합니다.
+저장소 루트의 대상별 가이드를 진입점으로 사용합니다.
+- Claude 런타임은 `CLAUDE.md`
+- Codex 런타임은 `AGENTS.md`

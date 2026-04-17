@@ -1,24 +1,15 @@
 ---
 name: ygg-next
-description: "Build design, spec, and tasks for the active proposal. Validates architecture decisions via YGG Point scoring. Triggered by /ygg:next command."
-license: MIT
-compatibility: Requires Codex CLI project skills.
-metadata:
-  author: ygg
-  sourceLang: "en"
-  generatedBy: "@cono-ai/ygg"
+description: "Build design, spec, and tasks for the active proposal. Validates architecture decisions via YGG Point scoring."
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - AskUserQuestion
 ---
-
-Build design, spec, and tasks for the active proposal. Validates architecture decisions via YGG Point scoring. Triggered by /ygg:next command.
-
-**Input**: Accept the user request normally. If required context is missing, ask for it before proceeding.
-
-## Source Mapping
-
-- Claude command source: `/ygg:next`
-- Claude skill source: `ygg-next`
-- Codex behavior: perform the same workflow directly in this repository without relying on Claude-only slash commands or AskUserQuestion primitives.
-- When a Claude step says `AskUserQuestion`, ask the user directly in plain chat and continue from the answer.
 
 # ygg-next — Design + Spec + Tasks with YGG Point
 

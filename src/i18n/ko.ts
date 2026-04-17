@@ -55,7 +55,7 @@ export const ko = {
     },
     status: {
       description:
-        '현재 구현 진행 현황 대시보드. ygg/progress/ 체크박스를 파싱하여 페이즈별/전체 완료율 표시. /ygg:status 커맨드로 실행.',
+        '현재 구현 진행 현황 대시보드. ygg/change/INDEX.md와 활성 토픽의 tasks.md를 읽어 페이즈별/전체 완료율 표시. /ygg:status 커맨드로 실행.',
     },
     prove: {
       description:
@@ -68,7 +68,7 @@ export const ko = {
     },
     core: {
       description:
-        '모든 /ygg:* 커맨드의 공유 규칙과 포맷 정의. OpenSpec-like 파이프라인(create→next→add→qa), per-change 디렉토리 구조, 문서 포맷, AskUserQuestion 상호작용 규칙과 다중 AI 협업 흐름의 공통 기반. ygg skill과 함께 자동 활성화.',
+        '모든 /ygg:* 커맨드의 공유 규칙과 포맷 정의. OpenSpec-like 파이프라인(create→next→add→qa), ygg/change/ 기반 system-of-record 구조, 문서 포맷, AskUserQuestion 상호작용 규칙과 다중 AI 협업 흐름의 공통 기반. ygg skill과 함께 자동 활성화.',
     },
   },
 } as const satisfies Messages

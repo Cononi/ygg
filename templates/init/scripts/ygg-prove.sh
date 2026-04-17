@@ -67,16 +67,18 @@ if has_claude_layout; then
   done
 fi
 if has_codex_layout; then
-  for skill in ygg-core ygg-create ygg-status ygg-next ygg-prove ygg-add ygg-qa ygg-teams; do
+  for skill in ygg-core ygg-create ygg-status ygg-next ygg-prove ygg-add ygg-qa; do
     f=".codex/skills/${skill}/SKILL.md"
     if [ -f "$f" ]; then
       pass "codex ${skill} exists"
       grep -q "^name: ${skill}" "$f" && pass "codex ${skill} name" || fail "codex ${skill} missing name"
       grep -q "^description:" "$f" && pass "codex ${skill} description" || fail "codex ${skill} missing description"
+      [ "$(grep -c '^## Source Mapping$' "$f")" -le 1 ] && pass "codex ${skill} source mapping deduplicated" || fail "codex ${skill} has duplicated Source Mapping sections"
     else
       fail "codex ${skill} missing"
     fi
   done
+  [ ! -d ".codex/skills/ygg-teams" ] && pass "codex excludes Claude-only ygg-teams" || fail "codex should not include ygg-teams"
 fi
 
 section "5. Hooks"
@@ -120,6 +122,8 @@ done
 section "7. Documents"
 check_file "ygg/change/INDEX.md" warn
 [ -f "ygg/change/INDEX.md" ] && grep -q "토픽" ygg/change/INDEX.md && pass "INDEX has topic table" || true
+[ ! -f "AGENTS.md" ] || ! grep -q "Follow the detailed automation from \`.claude/commands" "AGENTS.md" && pass "AGENTS avoids Claude runtime instructions" || fail "AGENTS should not point Codex users at Claude runtime automation"
+[ ! -f "CLAUDE.md" ] || ! grep -q "Use the generated \`.codex/skills" "CLAUDE.md" && pass "CLAUDE avoids Codex runtime instructions" || fail "CLAUDE should not point Claude users at Codex runtime automation"
 
 section "8. Active Topic"
 if [ -f "ygg/change/INDEX.md" ]; then

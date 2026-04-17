@@ -11,6 +11,13 @@ This project manages work per change under `ygg/change/`.
 5. Prefer small, reviewable changes and follow the surrounding code style and structure.
 6. If QA passes, the active topic is considered finally complete and must be moved to `ygg/change/archive/` immediately. Leaving a QA-passed topic in the active list is not allowed for any AI workflow.
 
+## Harness Model
+
+- Treat `ygg/change/<topic>/` documents as the system of record for long-running work.
+- Use `proposal.md`, `design.md`, `specs/`, `tasks.md`, and verification evidence as file-based handoff points between agents and stages.
+- Keep target-specific runtime instructions separated: `CLAUDE.md` + `.claude/` for Claude, `AGENTS.md` + `.codex/` for Codex.
+- When changing ygg itself, you may edit both targets' source templates, but do not mix their runtime instructions in the generated docs.
+
 ## Standard Flow
 
 1. Define intent and scope in `proposal.md`
@@ -32,4 +39,6 @@ This project manages work per change under `ygg/change/`.
 - Active topic: `ygg/change/<topic>/`
 - Verification script: `bash ygg/scripts/ygg-prove.sh`
 
-If `.claude/` exists, keep using the Claude slash commands, skills, and hooks from that directory.
+Use the target-specific guide in the repository root as your entry point:
+- `CLAUDE.md` for Claude runtime flows
+- `AGENTS.md` for Codex runtime flows

@@ -20,6 +20,7 @@ import {
 } from './i18n/config.js'
 import { arrowKeySelect, promptInput } from './utils/interactive.js'
 import { logger, setLogLevel } from './utils/logger.js'
+import { resolveDashboardProjectRoot } from './utils/project-root.js'
 
 const program = new Command()
 
@@ -224,14 +225,14 @@ dashboardCmd
   .option('--no-open', '브라우저 자동 열기 비활성화')
   .action(async (options: { port?: string; open: boolean }) => {
     const port = options.port ? parseInt(options.port, 10) : undefined
-    await runDashboard(process.cwd(), { port, open: options.open })
+    await runDashboard(resolveDashboardProjectRoot(), { port, open: options.open })
   })
 
 dashboardCmd
   .command('port [number]')
   .description('dashboard 기본 포트 설정/조회 (ygg/config.yml에 저장)')
   .action(async (portArg?: string) => {
-    await runDashboardPort(process.cwd(), portArg)
+    await runDashboardPort(resolveDashboardProjectRoot(), portArg)
   })
 
 dashboardCmd

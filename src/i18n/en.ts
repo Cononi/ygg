@@ -57,7 +57,7 @@ export const en = {
     },
     status: {
       description:
-        'Show implementation progress dashboard. Parses checkboxes from ygg/progress/ to display per-phase and overall completion rates. Triggered by /ygg:status command.',
+        'Show implementation progress dashboard. Reads ygg/change/INDEX.md and active topics\' tasks.md files to display per-phase and overall completion rates. Triggered by /ygg:status command.',
     },
     prove: {
       description:
@@ -70,7 +70,7 @@ export const en = {
     },
     core: {
       description:
-        'Shared rules and formats for all /ygg:* commands. Defines the OpenSpec-like pipeline (create→next→add→qa), per-change directory structure under ygg/change/, document formats, AskUserQuestion interaction rules, and the shared foundation for multi-AI collaboration. Auto-activates alongside any ygg skill.',
+        'Shared rules and formats for all /ygg:* commands. Defines the OpenSpec-like pipeline (create→next→add→qa), the per-change system-of-record under ygg/change/, document formats, AskUserQuestion interaction rules, and the shared foundation for multi-AI collaboration. Auto-activates alongside any ygg skill.',
     },
   },
 } as const satisfies Messages

@@ -10,6 +10,7 @@ import { getPackageVersion } from '../utils/package-version.js'
 
 import {
   AGENT_DOC_FILENAMES,
+  CODEX_SKILLS,
   INIT_TEMPLATES_DIR,
   YGG_SCRIPTS_DIR,
   getLangDir,
@@ -404,10 +405,11 @@ async function cleanupDeselectedTargets(
 async function cleanupCodexDeprecated(projectRoot: string, lang: string): Promise<number> {
   const codexSkillsDir = join(projectRoot, '.codex', 'skills')
   const skills = await listTemplateSkills(lang)
+  const codexSkills = skills.filter((skill) => CODEX_SKILLS.includes(skill))
 
   return removeStaleDirectories(
     codexSkillsDir,
-    new Set(skills),
+    new Set(codexSkills),
     'ygg-',
     '.codex/skills',
   )

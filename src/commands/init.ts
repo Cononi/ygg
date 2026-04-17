@@ -35,6 +35,7 @@ function getAgentDocsDir(lang: string): string {
   return join(getLangDir(lang), 'agent-docs')
 }
 export const YGG_SKILLS = ['ygg-core', 'ygg-create', 'ygg-status', 'ygg-next', 'ygg-prove', 'ygg-add', 'ygg-qa', 'ygg-teams']
+export const CODEX_SKILLS = YGG_SKILLS.filter((skill) => skill !== 'ygg-teams')
 export const HOOK_SCRIPTS = ['ygg-scope-check.sh', 'ygg-track-change.sh', 'ygg-progress-check.sh', 'ygg-prove.sh', 'ygg-log-change.sh']
 
 export interface InitOptions {
@@ -147,7 +148,7 @@ async function scaffoldWorkflowAssets(projectRoot: string, lang: string): Promis
 
 async function scaffoldCodexAssets(projectRoot: string, lang: string): Promise<void> {
   const codexDir = join(projectRoot, '.codex', 'skills')
-  const skills = await listTemplateSkills(lang)
+  const skills = await listCodexTemplateSkills(lang)
 
   await mkdir(codexDir, { recursive: true })
 
@@ -401,10 +402,11 @@ export async function renderCodexSkill(skill: string, lang: string): Promise<str
   const skillContent = await readFile(join(getLangDir(lang), 'skills', skill, 'SKILL.md'), 'utf-8')
   const skillMeta = extractFrontmatterFields(skillContent)
   const relatedCommand = skill === 'ygg-core' ? null : skill.replace(/^ygg-/, '')
-  const skillBody = stripFrontmatter(skillContent).trim()
+  const skillBody = extractPrimaryHeadingContent(stripFrontmatter(skillContent)).trim()
+  const description = cleanCodexDescription(skillMeta.description || `Codex workflow skill for ${skill}.`)
 
   const body: string[] = [
-    skillMeta.description || `Codex workflow skill for ${skill}.`,
+    description,
     '',
     '**Input**: Accept the user request normally. If required context is missing, ask for it before proceeding.',
     '',
@@ -435,13 +437,7 @@ export async function renderCodexSkill(skill: string, lang: string): Promise<str
   return [
     '---',
     `name: ${skill}`,
-    `description: ${JSON.stringify(skillMeta.description || `Codex workflow skill for ${skill}.`)}`,
-    'license: MIT',
-    'compatibility: Requires Codex CLI project skills.',
-    'metadata:',
-    '  author: ygg',
-    `  sourceLang: "${lang}"`,
-    '  generatedBy: "@cono-ai/ygg"',
+    `description: ${JSON.stringify(description)}`,
     '---',
     '',
     ...body,
@@ -462,8 +458,25 @@ function stripFrontmatter(content: string): string {
   return normalized.slice(end + 5)
 }
 
+function extractPrimaryHeadingContent(content: string): string {
+  const normalized = content.replace(/\r\n/g, '\n').trim()
+  const headingIndex = normalized.search(/^#\s+/m)
+  if (headingIndex === -1) {
+    return normalized
+  }
+
+  return normalized.slice(headingIndex)
+}
+
+function cleanCodexDescription(description: string): string {
+  return description
+    .replace(/\s*Triggered by \/ygg:[^.]*(?: command)?\.?$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 async function renderCodexSkillIndexSection(lang: string): Promise<string> {
-  const skills = await listTemplateSkills(lang)
+  const skills = await listCodexTemplateSkills(lang)
   const lines = ['### Available Skills']
 
   for (const skill of skills) {
@@ -576,7 +589,7 @@ export async function syncCodexSkills(
   lang: string,
 ): Promise<{ updated: number; skipped: number }> {
   const codexDir = join(projectRoot, '.codex', 'skills')
-  const skills = await listTemplateSkills(lang)
+  const skills = await listCodexTemplateSkills(lang)
   let updated = 0
   let skipped = 0
 
@@ -599,6 +612,11 @@ export async function syncCodexSkills(
   }
 
   return { updated, skipped }
+}
+
+async function listCodexTemplateSkills(lang: string): Promise<string[]> {
+  const skills = await listTemplateSkills(lang)
+  return skills.filter((skill) => CODEX_SKILLS.includes(skill))
 }
 
 /** ygg 작업공간 생성: change index, version, gitignore */

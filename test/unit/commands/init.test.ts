@@ -45,6 +45,7 @@ describe('runInit', () => {
     const shared = await readFile(join(projectRoot, 'ygg', 'agent.md'), 'utf-8')
     const claude = await readFile(join(projectRoot, 'CLAUDE.md'), 'utf-8')
     const codex = await readFile(join(projectRoot, 'AGENTS.md'), 'utf-8')
+    const proveScript = await readFile(join(projectRoot, 'ygg', 'scripts', 'ygg-prove.sh'), 'utf-8')
     const [expectedCommands, expectedSkills, expectedAgents, expectedScripts] = await Promise.all([
       listTemplateCommands(TEST_LANG),
       listTemplateSkills(TEST_LANG),
@@ -61,6 +62,8 @@ describe('runInit', () => {
     expect(shared).toContain('ygg/change/')
     expect(claude).toContain('ygg/agent.md')
     expect(codex).toContain('ygg/agent.md')
+    expect(proveScript).toContain('codex excludes Claude-only ygg-teams')
+    expect(proveScript).not.toContain('codex ygg-teams missing')
     expect(actualCommands).toEqual(expectedCommands.map((entry) => `${entry}.md`))
     expect(actualSkills).toEqual(expectedSkills)
     expect(actualAgents).toEqual(expectedAgents)
@@ -77,9 +80,13 @@ describe('runInit', () => {
     expect(codex).toContain('.codex/skills/ygg-create/SKILL.md')
     expect(codex).toContain('expert-architect')
     expect(codex).toContain('ygg-prove.sh')
+    expect(codex).not.toContain('Follow the detailed automation from `.claude/commands')
     expect(codexSkill).toContain('## Source Mapping')
     expect(codexSkill).toContain('## Workflow')
     expect(codexSkill).toContain('Guardrails')
+    expect(countMatches(codexSkill, /^## Source Mapping$/gm)).toBe(1)
+    expect(codexSkill).not.toContain('compatibility: Requires Codex CLI project skills.')
+    await expect(readFile(join(projectRoot, '.codex', 'skills', 'ygg-teams', 'SKILL.md'), 'utf-8')).rejects.toThrow()
 
     await expect(readFile(join(projectRoot, 'CLAUDE.md'), 'utf-8')).rejects.toThrow()
     await expect(readFile(join(projectRoot, '.claude', 'settings.json'), 'utf-8')).rejects.toThrow()
@@ -114,6 +121,7 @@ describe('runUpdate', () => {
     expect(codex).toContain('## Codex Skills')
     expect(codexSkill).toContain('## Source Mapping')
     expect(codexSkill).toContain('## Workflow')
+    expect(countMatches(codexSkill, /^## Source Mapping$/gm)).toBe(1)
     await expect(readFile(join(projectRoot, 'CLAUDE.md'), 'utf-8')).rejects.toThrow()
     await expect(readFile(join(projectRoot, '.claude', 'settings.json'), 'utf-8')).rejects.toThrow()
   })
@@ -159,6 +167,7 @@ describe('runUpdate', () => {
     const codexSkill = await readFile(join(projectRoot, '.codex', 'skills', 'ygg-next', 'SKILL.md'), 'utf-8')
     expect(codexSkill).toContain('## Workflow')
     expect(codexSkill).toContain('## Source Mapping')
+    await expect(readFile(join(projectRoot, '.codex', 'skills', 'ygg-teams', 'SKILL.md'), 'utf-8')).rejects.toThrow()
   })
 
   it('removes codex output when codex is deselected in config', async () => {
@@ -178,4 +187,8 @@ describe('runUpdate', () => {
 
 async function listRelativeEntries(dir: string): Promise<string[]> {
   return (await readdir(dir)).sort()
+}
+
+function countMatches(input: string, pattern: RegExp): number {
+  return input.match(pattern)?.length ?? 0
 }

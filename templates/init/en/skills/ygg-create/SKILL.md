@@ -1,24 +1,15 @@
 ---
 name: ygg-create
-description: "Create a new feature/change proposal. Validates spec completeness via YGG Point scoring, asking clarifying questions until clarity reaches 0.95+. Triggered by /ygg:create command."
-license: MIT
-compatibility: Requires Codex CLI project skills.
-metadata:
-  author: ygg
-  sourceLang: "en"
-  generatedBy: "@cono-ai/ygg"
+description: "Create a new feature/change proposal. Validates spec completeness via YGG Point scoring, asking clarifying questions until clarity reaches 0.95+."
+allowed_tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - AskUserQuestion
 ---
-
-Create a new feature/change proposal. Validates spec completeness via YGG Point scoring, asking clarifying questions until clarity reaches 0.95+. Triggered by /ygg:create command.
-
-**Input**: Accept the user request normally. If required context is missing, ask for it before proceeding.
-
-## Source Mapping
-
-- Claude command source: `/ygg:create`
-- Claude skill source: `ygg-create`
-- Codex behavior: perform the same workflow directly in this repository without relying on Claude-only slash commands or AskUserQuestion primitives.
-- When a Claude step says `AskUserQuestion`, preserve the same interaction contract in Codex: choice prompts must stay interactive with arrow-key selection in terminal flows, while open-ended clarification can continue in plain chat.
 
 # ygg-create — New Proposal with YGG Point
 
@@ -41,7 +32,7 @@ Refer to `ygg-core` for shared rules, formats, and YGG Point system.
 ## Workflow
 
 0. **Local LLM check** — `Bash: ygg llm status --json`. If `active !== null`, delegate scoring (step 3) via `ygg llm score --dimensions <dims.json> --input <topic.md>` and proposal synthesis (step 6) via `ygg llm write --type proposal --input <context.json>`. On non-zero exit report and stop — see ygg-core Local LLM Delegation section.
-1. **Check arguments** — if none, request description via AskUserQuestion
+1. **Check arguments** — if none, request a description via AskUserQuestion
 2. **Auto-mode selection** — if `ygg point auto-mode` is unset, present a mandatory interactive `on/off` choice with arrow-key selection in terminal flows. This setting applies to `create` only
 3. **Round 0** — calculate baseFill and inspect reference/consistency candidates. Auto-verify them only when `ygg point auto-mode=on`; when `off`, keep them in the user question flow → show score
 4. **Interactive Question Loop** — ask exactly one question at a time. Never dump multiple questions together. Do not repeat the same question. Continue until the proposal reaches 0.95+ clarity or no better clarification question remains

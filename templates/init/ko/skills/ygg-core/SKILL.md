@@ -117,7 +117,7 @@ ygg/change/
 
 ## Local LLM Delegation (LM Studio)
 
-`ygg llm`으로 `llm.active`가 설정되면, `ygg:add` 단계에서 코드 생성을 LM Studio에 위임하여 Claude 토큰을 절감한다.
+`ygg llm`으로 `llm.active`가 설정되면, `ygg:add` 단계에서 코드 생성을 LM Studio에 위임하여 주 실행 AI의 토큰 사용량을 줄일 수 있다.
 
 **먼저 체크** — `ygg:add`는 step 0에서 `Bash: ygg llm status --json`을 실행한다. `active === null`이면 위임을 건너뛰고 직접 구현.
 
@@ -125,11 +125,11 @@ ygg/change/
 
 | 작업 | 활성 시 | 비활성 시 |
 |------|--------|----------|
-| `ygg:add` 코드 초안 생성 | `ygg llm code --context <file> --task <desc>` → stdout | Claude |
-| `ygg:add` 파일 적용 (Write/Edit) | Claude | Claude |
-| 코드 읽기 (Read/Grep/Glob) | Claude | Claude |
-| create/next/qa 문서 합성 | Claude | Claude |
+| `ygg:add` 코드 초안 생성 | `ygg llm code --context <file> --task <desc>` → stdout | Primary AI |
+| `ygg:add` 파일 적용 (Write/Edit) | Primary AI | Primary AI |
+| 코드 읽기 (Read/Grep/Glob) | Primary AI | Primary AI |
+| create/next/qa 문서 합성 | Primary AI | Primary AI |
 
-**절대 위임 금지**: create/next/qa 단계, 문서 합성, 설계 결정 — 모두 Claude 고정.
+**절대 위임 금지**: create/next/qa 단계, 문서 합성, 설계 결정 — 모두 주 실행 AI가 담당한다.
 
 **실패 처리**: `ygg llm code`가 0이 아닌 exit code로 종료되면(2=비활성, 8=타임아웃, 10=컨텍스트 없음, 12=어댑터 오류), 직접 코드 작성으로 폴백하고 이유를 로그에 기록.

@@ -19,7 +19,7 @@ Refer to `ygg-core` for shared rules and formats.
 
 ## Workflow
 
-0. **Local LLM 체크** — `Bash: ygg llm status --json`. `active !== null`이면 step 4의 빌드/테스트/린트 로그 요약을 `ygg llm summarize --input <log>`로 위임. 코드 수정은 Claude가 담당. 0이 아닌 exit code면 보고 후 중단 — ygg-core의 Local LLM Delegation 섹션 참조.
+0. **Local LLM 체크** — `Bash: ygg llm status --json`. `active !== null`이면 step 4의 빌드/테스트/린트 로그 요약을 `ygg llm summarize --input <log>`로 위임. 코드 수정은 현재 주 실행 AI가 담당한다. 0이 아닌 exit code면 보고 후 중단 — ygg-core의 Local LLM Delegation 섹션 참조.
 1. **Active Topic 찾기** — INDEX.md에서 단계=`add` 토픽 (ygg-core 참조)
 2. **검증 문서 읽기** — tasks.md (검증 섹션), specs/, design.md
 3. **검증 실행**:
