@@ -31,6 +31,7 @@ interface ChangesProps {
   projectId: string
   initialSubTab?: SubTab
   onSummaryChange?: (summary: { inProgress: number; done: number; total: number }) => void
+  onChangeMutated?: () => void
 }
 
 type SubTab = 'active' | 'archive'
@@ -223,7 +224,7 @@ function TimelineItem({
   )
 }
 
-export default function Changes({ projectId, initialSubTab = 'active', onSummaryChange }: ChangesProps) {
+export default function Changes({ projectId, initialSubTab = 'active', onSummaryChange, onChangeMutated }: ChangesProps) {
   const [topics, setTopics] = useState<ChangeEntry[]>([])
   const [archiveTopics, setArchiveTopics] = useState<ChangeEntry[]>([])
   const [subTab, setSubTab] = useState<SubTab>(initialSubTab)
@@ -269,6 +270,7 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
     setTopics(prev => prev.map(t => t.topic === topic ? { ...t, status: newStatus } : t))
     try {
       await api.changes.patch(projectId, topic, 'status', newStatus)
+      onChangeMutated?.()
     } catch {
       void load()
     }
@@ -279,6 +281,7 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
     setTopics(prev => prev.map(t => t.topic === topic ? { ...t, stage: newStage } : t))
     try {
       await api.changes.patch(projectId, topic, 'stage', newStage)
+      onChangeMutated?.()
     } catch {
       void load()
     }
@@ -289,6 +292,7 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
     try {
       await api.changes.archive(projectId, topic)
       await load()
+      onChangeMutated?.()
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Archive 이동 실패')
     }
@@ -300,6 +304,7 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
     try {
       await api.changes.delete(projectId, topicKey)
       await load()
+      onChangeMutated?.()
     } catch (e) {
       alert(e instanceof Error ? e.message : '삭제 실패')
     }
@@ -310,6 +315,7 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
     try {
       await api.changes.restore(projectId, topic)
       await load()
+      onChangeMutated?.()
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Active 이동 실패')
     }
@@ -343,7 +349,7 @@ export default function Changes({ projectId, initialSubTab = 'active', onSummary
           ['Completed history', String(snapshot.completedCount)],
           ['Latest release', latestArchiveVersion],
         ].map(([label, value]) => (
-          <Grid key={label} size={{ xs: 12, md: 4 }}>
+          <Grid key={label} xs={12} md={4}>
             <Paper variant="outlined" sx={{ p: 1.75, borderRadius: 1 }}>
               <Typography variant="caption" color="text.secondary">{label}</Typography>
               <Typography variant="h6" sx={{ mt: 0.5 }}>{value}</Typography>

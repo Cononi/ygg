@@ -1,5 +1,8 @@
 export type VersionStatus = 'latest' | 'patch-behind' | 'minor-behind' | 'major-behind' | 'unknown'
 export type ProjectContentType = 'skills' | 'agents' | 'commands' | 'changes'
+export type ProjectDescriptionSource = 'manual' | 'generated'
+export type ProjectFlowNodeKind = 'summary' | 'stage' | 'document' | 'content' | 'action'
+export type ProjectFlowNodeStatus = 'done' | 'active' | 'pending' | 'neutral'
 
 export interface ProjectEntry {
   id: string
@@ -19,18 +22,73 @@ export interface ProjectContentSummary {
   changes: number
 }
 
+export interface ChangeStatus {
+  total: number
+  inProgress: number
+  done: number
+}
+
+export interface ProjectDashboardSummary {
+  tags: string[]
+  description: string
+  descriptionSource: ProjectDescriptionSource
+  currentStage: string
+  stageReason: string[]
+  nextAction: string
+  nextActionReason: string[]
+  activeTopic?: string
+  activeTopicDescription?: string
+  activeTargets: Array<{
+    id: string
+    label: string
+  }>
+}
+
+export interface ProjectFlowNode {
+  id: string
+  kind: ProjectFlowNodeKind
+  label: string
+  status: ProjectFlowNodeStatus
+  position: {
+    x: number
+    y: number
+  }
+  meta?: string[]
+}
+
+export interface ProjectFlowEdge {
+  id: string
+  source: string
+  target: string
+  label?: string
+}
+
+export interface ProjectFlowSnapshot {
+  nodes: ProjectFlowNode[]
+  edges: ProjectFlowEdge[]
+  legend: {
+    currentStage: string
+    stageReason: string[]
+    nextAction: string
+    nextActionReason: string[]
+    activeTopic?: string
+    hasGeneratedDescription: boolean
+    activeTargets: Array<{
+      id: string
+      label: string
+    }>
+  }
+}
+
 export interface ProjectInfo extends ProjectEntry {
   currentVersion: string
   projectVersion: string
   versionStatus: VersionStatus
   contentSummary: ProjectContentSummary
+  summary: ProjectDashboardSummary
   latestReleaseVersion?: string
   latestReleaseDate?: string
-  changeStatus: {
-    total: number
-    inProgress: number
-    done: number
-  }
+  changeStatus: ChangeStatus
 }
 
 export interface ProjectCategoryGroup {
@@ -38,15 +96,34 @@ export interface ProjectCategoryGroup {
   projects: ProjectInfo[]
 }
 
+export interface ProjectCategoryMeta {
+  name: string
+  order: number
+  isDefault: boolean
+  projectCount: number
+}
+
 export interface ProjectListResponse {
   categories: string[]
+  defaultCategory: string
+  categoryMeta: ProjectCategoryMeta[]
   projects: ProjectInfo[]
   groupedProjects: ProjectCategoryGroup[]
 }
 
+export interface AppliedInitSummary {
+  id: string
+  label: string
+}
+
+export interface ProjectDetailInfo extends ProjectInfo {
+  appliedInits: AppliedInitSummary[]
+}
+
 export interface ProjectDetail {
-  info: ProjectInfo
+  info: ProjectDetailInfo
   targets: TargetFileSource[]
+  flowSnapshot: ProjectFlowSnapshot
 }
 
 export interface TargetFileCollections {

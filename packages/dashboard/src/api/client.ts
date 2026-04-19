@@ -1,5 +1,4 @@
 import type {
-  ProjectInfo,
   ProjectDetail,
   ProjectEntry,
   ChangesResponse,
@@ -43,6 +42,20 @@ export const api = {
         body: JSON.stringify({ name }),
       }).then(r => json(r)),
 
+    reorderCategories: (categories: string[]): Promise<{ success: boolean; categories: string[] }> =>
+      fetch(`${BASE}/projects/categories/order`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ categories }),
+      }).then(r => json(r)),
+
+    updateDefaultCategory: (name: string): Promise<{ success: boolean; defaultCategory: string; categories: string[] }> =>
+      fetch(`${BASE}/projects/categories/default`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      }).then(r => json(r)),
+
     renameCategory: (currentName: string, name: string): Promise<{ success: boolean; categories: string[] }> =>
       fetch(`${BASE}/projects/categories/${encodeURIComponent(currentName)}`, {
         method: 'PATCH',
@@ -50,7 +63,7 @@ export const api = {
         body: JSON.stringify({ name }),
       }).then(r => json(r)),
 
-    deleteCategory: (name: string): Promise<{ success: boolean; categories: string[] }> =>
+    deleteCategory: (name: string): Promise<{ success: boolean; categories: string[]; defaultCategory: string }> =>
       fetch(`${BASE}/projects/categories/${encodeURIComponent(name)}`, {
         method: 'DELETE',
       }).then(r => json(r)),

@@ -76,12 +76,33 @@ describe('dashboard target-aware file sources', () => {
       info: {
         latestReleaseVersion?: string
         latestReleaseDate?: string
+        appliedInits: Array<{ id: string; label: string }>
+        summary: {
+          tags: string[]
+          description: string
+          descriptionSource: 'manual' | 'generated'
+          currentStage: string
+          stageReason: string[]
+          nextAction: string
+          nextActionReason: string[]
+          activeTargets: Array<{ id: string; label: string }>
+        }
         contentSummary: {
           skills: number
           agents: number
           commands: number
           changes: number
         }
+      }
+      flowSnapshot: {
+        legend: {
+          currentStage: string
+          stageReason: string[]
+          nextAction: string
+          nextActionReason: string[]
+          activeTargets: Array<{ id: string; label: string }>
+        }
+        nodes: Array<{ id: string; status: string }>
       }
       targets: Array<{
         target: string
@@ -97,6 +118,45 @@ describe('dashboard target-aware file sources', () => {
       commands: 1,
       changes: 2,
     })
+    expect(payload.info.appliedInits).toEqual([
+      { id: 'claude', label: 'Claude' },
+      { id: 'codex', label: 'Codex' },
+      { id: 'custom-ai', label: 'Custom Ai' },
+    ])
+    expect(payload.info.summary.descriptionSource).toBe('generated')
+    expect(payload.info.summary.currentStage).toBe('complete')
+    expect(payload.info.summary.stageReason).toEqual([
+      'live INDEX에서 active topic을 찾지 못했습니다.',
+      'archive 이력이 남아 있어 현재 프로젝트를 complete 상태로 간주합니다.',
+    ])
+    expect(payload.info.summary.nextAction).toBe('새 change를 시작하거나 완료 이력을 검토합니다')
+    expect(payload.info.summary.nextActionReason).toEqual([
+      'active topic은 없고 완료 이력만 남아 있어 새 change 시작 또는 완료 이력 검토가 다음 액션입니다.',
+    ])
+    expect(payload.info.summary.activeTargets).toEqual([
+      { id: 'claude', label: 'Claude' },
+      { id: 'codex', label: 'Codex' },
+      { id: 'custom-ai', label: 'Custom Ai' },
+    ])
+    expect(payload.flowSnapshot.legend).toEqual({
+      currentStage: 'complete',
+      stageReason: [
+        'live INDEX에서 active topic을 찾지 못했습니다.',
+        'archive 이력이 남아 있어 현재 프로젝트를 complete 상태로 간주합니다.',
+      ],
+      nextAction: '새 change를 시작하거나 완료 이력을 검토합니다',
+      nextActionReason: [
+        'active topic은 없고 완료 이력만 남아 있어 새 change 시작 또는 완료 이력 검토가 다음 액션입니다.',
+      ],
+      activeTopic: undefined,
+      hasGeneratedDescription: true,
+      activeTargets: [
+        { id: 'claude', label: 'Claude' },
+        { id: 'codex', label: 'Codex' },
+        { id: 'custom-ai', label: 'Custom Ai' },
+      ],
+    })
+    expect(payload.flowSnapshot.nodes.find(node => node.id === 'stage:qa')?.status).toBe('done')
 
     expect(payload.targets.map(target => target.target)).toEqual(['claude', 'codex', 'custom-ai'])
     expect(payload.targets.find(target => target.target === 'claude')?.files).toEqual({

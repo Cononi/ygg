@@ -125,7 +125,7 @@ export function MarkdownRenderer({
         components={{
           table: ({ node: _node, ...props }) => (
             <Box className="markdown-table-wrap">
-              <Box component="table" {...props} />
+              <table {...props} />
             </Box>
           ),
         }}

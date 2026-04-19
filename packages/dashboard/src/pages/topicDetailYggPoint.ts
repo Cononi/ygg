@@ -675,7 +675,8 @@ export function buildYggPointStageDimensionRows(
   return Object.entries(dimensions ?? {}).map(([name, detail]) => {
     const rowId = createYggPointRowId(stageName, name)
     const questionTrail = detail.questionTrail ?? []
-    const trailCards = questionTrail.map((entry, index) => ({
+    const lastTrailIndex = questionTrail.length - 1
+    const trailCards: YggPointTrailCard[] = questionTrail.map((entry, index) => ({
       roundLabel: `Round ${entry.round ?? index + 1}`,
       beforeAfterLabel: `${formatScoreValue(entry.scoreBefore)} → ${formatScoreValue(entry.scoreAfter)}`,
       deltaLabel: formatScoreDelta(entry.delta),
@@ -683,12 +684,8 @@ export function buildYggPointStageDimensionRows(
       evaluatorType: entry.evaluatorType,
       question: entry.question ?? '질문 없음',
       answer: entry.answer ?? '답변 없음',
-      finalQaChipLabel: null,
+      finalQaChipLabel: index === lastTrailIndex ? '최종 질답' : null,
     }))
-    const lastTrailCard = trailCards[trailCards.length - 1]
-    if (lastTrailCard) {
-      lastTrailCard.finalQaChipLabel = '최종 질답'
-    }
 
     return {
       rowId,

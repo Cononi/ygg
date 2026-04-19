@@ -77,9 +77,16 @@ describe('project categories and content routes', () => {
     expect(listRes.statusCode).toBe(200)
     const listPayload = listRes.json<{
       categories: string[]
+      defaultCategory: string
+      categoryMeta: Array<{ name: string; isDefault: boolean; order: number; projectCount: number }>
       groupedProjects: Array<{ category: string; projects: Array<{ id: string; category: string }> }>
     }>()
     expect(listPayload.categories).toEqual(['home', 'Platform'])
+    expect(listPayload.defaultCategory).toBe('home')
+    expect(listPayload.categoryMeta).toEqual([
+      { name: 'home', isDefault: true, order: 0, projectCount: 0 },
+      { name: 'Platform', isDefault: false, order: 1, projectCount: 1 },
+    ])
     expect(listPayload.groupedProjects.find(group => group.category === 'Platform')).toMatchObject({
       category: 'Platform',
       projects: [
@@ -206,6 +213,7 @@ describe('project categories and content routes', () => {
     expect(deleteRes.json()).toEqual({
       success: true,
       categories: ['home'],
+      defaultCategory: 'home',
     })
 
     const detailRes = await app.inject({ method: 'GET', url: `/api/projects/${projectId}` })
@@ -223,6 +231,61 @@ describe('project categories and content routes', () => {
     expect(defaultDeleteRes.statusCode).toBe(400)
     expect(defaultDeleteRes.json()).toEqual({
       error: 'Default category cannot be deleted',
+    })
+
+    await app.close()
+    vi.useFakeTimers()
+  })
+
+  it('updates default category and category order', async () => {
+    vi.useRealTimers()
+    const { createServer } = await import('../../../src/server/index.js')
+    const app = await createServer()
+
+    await app.inject({
+      method: 'POST',
+      url: '/api/projects/categories',
+      payload: { name: 'Platform' },
+    })
+    await app.inject({
+      method: 'POST',
+      url: '/api/projects/categories',
+      payload: { name: 'Ops' },
+    })
+
+    const defaultRes = await app.inject({
+      method: 'PATCH',
+      url: '/api/projects/categories/default',
+      payload: { name: 'Platform' },
+    })
+    expect(defaultRes.statusCode).toBe(200)
+    expect(defaultRes.json()).toEqual({
+      success: true,
+      defaultCategory: 'Platform',
+      categories: ['home', 'Platform', 'Ops'],
+    })
+
+    const orderRes = await app.inject({
+      method: 'PATCH',
+      url: '/api/projects/categories/order',
+      payload: { categories: ['Platform', 'Ops', 'home'] },
+    })
+    expect(orderRes.statusCode).toBe(200)
+    expect(orderRes.json()).toEqual({
+      success: true,
+      categories: ['Platform', 'Ops', 'home'],
+    })
+
+    const listRes = await app.inject({ method: 'GET', url: '/api/projects' })
+    expect(listRes.statusCode).toBe(200)
+    expect(listRes.json()).toMatchObject({
+      categories: ['Platform', 'Ops', 'home'],
+      defaultCategory: 'Platform',
+      categoryMeta: [
+        { name: 'Platform', isDefault: true, order: 0 },
+        { name: 'Ops', isDefault: false, order: 1 },
+        { name: 'home', isDefault: false, order: 2 },
+      ],
     })
 
     await app.close()

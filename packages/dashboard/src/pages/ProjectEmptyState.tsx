@@ -28,7 +28,7 @@ export default function ProjectEmptyState() {
             ['Completed history', 'archive 완료 항목을 버전, latest, 날짜 기준으로 확인합니다.'],
             ['Target-aware files', 'Claude, Codex, 이후 추가될 타깃 파일 구조를 같은 화면에서 탐색합니다.'],
           ].map(([title, body]) => (
-            <Grid key={title} size={{ xs: 12, md: 4 }}>
+            <Grid key={title} xs={12} md={4}>
               <Paper variant="outlined" sx={{ p: 2.25, borderRadius: 1, height: '100%' }}>
                 <Chip size="small" label={title} sx={{ mb: 1.5 }} />
                 <Typography variant="body2" color="text.secondary">

@@ -68,6 +68,15 @@ describe('project delete route', () => {
     expect(listRes.statusCode).toBe(200)
     expect(listRes.json()).toEqual({
       categories: ['home'],
+      defaultCategory: 'home',
+      categoryMeta: [
+        {
+          name: 'home',
+          isDefault: true,
+          order: 0,
+          projectCount: 0,
+        },
+      ],
       projects: [],
       groupedProjects: [
         {

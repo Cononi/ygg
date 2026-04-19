@@ -7,12 +7,19 @@ import { runUpdate } from '../../commands/update.js'
 import { syncChangeIndex } from '../../core/change-index.js'
 import type { ParsedChangeIndex } from '../../core/change-index.js'
 import { readConfigProjectVersion } from '../../i18n/config.js'
+import { getPackageVersion } from '../../utils/package-version.js'
 import {
   createProjectContent,
   deleteProjectContent,
   isProjectContentType,
   listProjectContent,
 } from '../project-content-store.js'
+import {
+  buildProjectDashboardSummary,
+  buildProjectFlowSnapshot,
+  type ProjectFlowSnapshot,
+  type ProjectDashboardSummary,
+} from '../project-dashboard.js'
 import {
   loadRegistry,
   addProject,
@@ -22,11 +29,13 @@ import {
   ensureCategory,
   renameCategory,
   deleteCategory,
+  getCategoryNames,
+  reorderCategories,
+  updateDefaultCategory,
   updateProjectMeta,
 } from '../registry.js'
 import type { ProjectEntry, Registry } from '../registry.js'
 import { listTargetFileSources } from '../target-files.js'
-import { getPackageVersion } from '../../utils/package-version.js'
 
 type VersionStatus = 'latest' | 'patch-behind' | 'minor-behind' | 'major-behind' | 'unknown'
 
@@ -42,6 +51,7 @@ interface ProjectInfo extends ProjectEntry {
   projectVersion: string
   versionStatus: VersionStatus
   contentSummary: ContentSummary
+  summary: ProjectDashboardSummary
   latestReleaseVersion?: string
   latestReleaseDate?: string
   changeStatus: {
@@ -49,6 +59,11 @@ interface ProjectInfo extends ProjectEntry {
     inProgress: number
     done: number
   }
+}
+
+interface AppliedInitSummary {
+  id: string
+  label: string
 }
 
 async function readYggVersion(projectPath: string): Promise<string | undefined> {
@@ -60,7 +75,11 @@ async function readYggVersion(projectPath: string): Promise<string | undefined> 
   }
 }
 
-function buildChangeStatus(model: ParsedChangeIndex) {
+function buildChangeStatus(model: ParsedChangeIndex): {
+  total: number
+  inProgress: number
+  done: number
+} {
   return {
     total: model.topics.length + model.archiveTopics.length,
     inProgress: model.topics.length,
@@ -76,7 +95,7 @@ function readLatestArchiveRelease(model: ParsedChangeIndex): { version?: string;
   }
 }
 
-async function safeSyncChangeIndex(projectPath: string) {
+async function safeSyncChangeIndex(projectPath: string): Promise<Awaited<ReturnType<typeof syncChangeIndex>> | null> {
   try {
     return await syncChangeIndex(projectPath)
   } catch {
@@ -84,7 +103,7 @@ async function safeSyncChangeIndex(projectPath: string) {
   }
 }
 
-async function safeListTargetFileSources(projectPath: string) {
+async function safeListTargetFileSources(projectPath: string): Promise<Awaited<ReturnType<typeof listTargetFileSources>>> {
   try {
     return await listTargetFileSources(projectPath)
   } catch {
@@ -112,12 +131,19 @@ function compareVersions(projectVersion: string | undefined, currentVersion: str
   return 'latest'
 }
 
-function groupProjectsByCategory(projects: ProjectInfo[], categories: string[]) {
+function groupProjectsByCategory(projects: ProjectInfo[], categories: string[]): Array<{ category: string; projects: ProjectInfo[] }> {
   return categories.map(category => ({
     category,
     projects: projects
       .filter(project => project.category === category)
       .sort((left, right) => left.name.localeCompare(right.name)),
+  }))
+}
+
+function buildAppliedInits(targets: Awaited<ReturnType<typeof safeListTargetFileSources>>): AppliedInitSummary[] {
+  return targets.map(target => ({
+    id: target.target,
+    label: target.label,
   }))
 }
 
@@ -147,6 +173,12 @@ async function getProjectInfo(entry: ProjectEntry, currentVersion: string): Prom
     done: 0,
   }
   const contentSummary = summarizeProjectArtifacts(targetSources, changeStatus)
+  const summary = await buildProjectDashboardSummary({
+    projectPath: entry.path,
+    entry,
+    targets: targetSources,
+    model: syncResult?.model ?? null,
+  })
   const yggVersion = projectYggVersion ?? entry.yggVersion ?? '0.0.0'
 
   return {
@@ -156,16 +188,37 @@ async function getProjectInfo(entry: ProjectEntry, currentVersion: string): Prom
     yggVersion,
     versionStatus: compareVersions(yggVersion, currentVersion),
     contentSummary,
+    summary,
     latestReleaseVersion: latestRelease.version,
     latestReleaseDate: latestRelease.date,
     changeStatus,
   }
 }
 
-function buildProjectListPayload(registry: Registry, projects: ProjectInfo[]) {
-  const sortedCategories = [...registry.categories].sort((left, right) => left.localeCompare(right))
+function buildProjectListPayload(
+  registry: Registry,
+  projects: ProjectInfo[],
+): {
+  categories: string[]
+  defaultCategory: string
+  categoryMeta: Array<{ name: string; order: number; isDefault: boolean; projectCount: number }>
+  projects: ProjectInfo[]
+  groupedProjects: Array<{ category: string; projects: ProjectInfo[] }>
+} {
+  const sortedCategories = getCategoryNames(registry)
+  const projectCounts = Object.fromEntries(sortedCategories.map(category => [
+    category,
+    projects.filter(project => project.category === category).length,
+  ]))
   return {
     categories: sortedCategories,
+    defaultCategory: registry.defaultCategory,
+    categoryMeta: sortedCategories.map((name, order) => ({
+      name,
+      order,
+      isDefault: name === registry.defaultCategory,
+      projectCount: projectCounts[name] ?? 0,
+    })),
     projects,
     groupedProjects: groupProjectsByCategory(projects, sortedCategories),
   }
@@ -204,7 +257,42 @@ export function projectsRoutes(app: FastifyInstance): void {
 
     const registry = await loadRegistry()
     await ensureCategory(registry, name)
-    return { success: true, categories: registry.categories }
+    return {
+      success: true,
+      categories: getCategoryNames(registry),
+      defaultCategory: registry.defaultCategory,
+    }
+  })
+
+  app.patch<{ Body: { categories: string[] } }>('/api/projects/categories/order', async (request, reply) => {
+    if (!Array.isArray(request.body.categories) || request.body.categories.length === 0) {
+      return reply.status(400).send({ error: 'categories is required' })
+    }
+
+    try {
+      const registry = await reorderCategories(request.body.categories)
+      return { success: true, categories: getCategoryNames(registry) }
+    } catch (error) {
+      return reply.status(400).send({ error: error instanceof Error ? error.message : 'Failed to reorder categories' })
+    }
+  })
+
+  app.patch<{ Body: { name: string } }>('/api/projects/categories/default', async (request, reply) => {
+    const name = request.body.name?.trim()
+    if (!name) {
+      return reply.status(400).send({ error: 'name is required' })
+    }
+
+    const registry = await updateDefaultCategory(name)
+    if (!registry) {
+      return reply.status(404).send({ error: 'Category not found' })
+    }
+
+    return {
+      success: true,
+      defaultCategory: registry.defaultCategory,
+      categories: getCategoryNames(registry),
+    }
   })
 
   app.patch<{ Params: { name: string }; Body: { name: string } }>('/api/projects/categories/:name', async (request, reply) => {
@@ -218,7 +306,7 @@ export function projectsRoutes(app: FastifyInstance): void {
       if (!registry) {
         return reply.status(404).send({ error: 'Category not found' })
       }
-      return { success: true, categories: registry.categories }
+      return { success: true, categories: getCategoryNames(registry) }
     } catch (error) {
       return reply.status(400).send({ error: error instanceof Error ? error.message : 'Failed to rename category' })
     }
@@ -230,7 +318,11 @@ export function projectsRoutes(app: FastifyInstance): void {
       if (!registry) {
         return reply.status(404).send({ error: 'Category not found' })
       }
-      return { success: true, categories: registry.categories }
+      return {
+        success: true,
+        categories: getCategoryNames(registry),
+        defaultCategory: registry.defaultCategory,
+      }
     } catch (error) {
       return reply.status(400).send({ error: error instanceof Error ? error.message : 'Failed to delete category' })
     }
@@ -294,7 +386,23 @@ export function projectsRoutes(app: FastifyInstance): void {
 
     const info = await getProjectInfo(entry, currentVersion)
     const targets = await safeListTargetFileSources(entry.path)
-    return { info, targets }
+    const syncResult = await safeSyncChangeIndex(entry.path)
+    const flowSnapshot: ProjectFlowSnapshot = await buildProjectFlowSnapshot({
+      projectPath: entry.path,
+      entry,
+      model: syncResult?.model ?? null,
+      targets,
+      contentSummary: info.contentSummary,
+      summary: info.summary,
+    })
+    return {
+      info: {
+        ...info,
+        appliedInits: buildAppliedInits(targets),
+      },
+      targets,
+      flowSnapshot,
+    }
   })
 
   app.get<{ Params: { id: string }; Querystring: { type?: string; page?: string; pageSize?: string } }>(

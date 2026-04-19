@@ -26,6 +26,8 @@ export interface ChangesSnapshotView {
   latestArchiveVersion?: string
 }
 
+// Display-only snapshot for the Changes timeline UI. The canonical project
+// stage now comes from the server-side project summary built from live INDEX.md.
 export function buildChangeSummary(data: ChangesResponse): ChangeStatus {
   return {
     inProgress: data.topics.length,
